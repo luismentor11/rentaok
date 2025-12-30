@@ -10,14 +10,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.replace("/login");
     }
   }, [loading, user, router]);
 
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-zinc-600">
-        Cargando sesion...
+        Cargando...
       </div>
     );
   }

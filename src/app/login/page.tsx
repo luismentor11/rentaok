@@ -19,7 +19,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push("/");
+      router.replace("/");
     }
   }, [loading, user, router]);
 
@@ -32,7 +32,7 @@ export default function LoginPage() {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      router.push("/");
+      router.replace("/");
     } catch (err: any) {
       setError(err?.message ?? "No se pudo autenticar. Intenta de nuevo.");
     } finally {
