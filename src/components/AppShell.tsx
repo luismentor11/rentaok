@@ -31,6 +31,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/properties" className="hover:text-zinc-900">
             Propiedades
           </Link>
+          <Link href="/contracts" className="hover:text-zinc-900">
+            Contratos
+          </Link>
           <Link href="/tenants" className="hover:text-zinc-900">
             Inquilinos
           </Link>

@@ -2,6 +2,7 @@
 
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 import { initializeFirestore, serverTimestamp } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -20,4 +21,5 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
   useFetchStreams: false,
 });
+export const storage = getStorage(app);
 export { serverTimestamp };
