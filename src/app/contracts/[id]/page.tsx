@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { getContract, ContractRecord } from "@/lib/db/contracts";
+import {
+  generateInstallmentsForContract,
+  listInstallmentsByContract,
+  InstallmentRecord,
+} from "@/lib/db/installments";
 
 const tabOptions = [
   { key: "cuotas", label: "Cuotas" },
@@ -26,6 +31,11 @@ export default function ContractDetailPage({ params }: PageProps) {
   const router = useRouter();
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [contract, setContract] = useState<ContractRecord | null>(null);
+  const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
+  const [installmentsLoading, setInstallmentsLoading] = useState(false);
+  const [installmentsError, setInstallmentsError] = useState<string | null>(
+    null
+  );
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("cuotas");
@@ -71,6 +81,34 @@ export default function ContractDetailPage({ params }: PageProps) {
       active = false;
     };
   }, [user, loading, router, params.id]);
+
+  const formatDueDate = (value: InstallmentRecord["dueDate"]) => {
+    const date =
+      typeof (value as any)?.toDate === "function"
+        ? (value as any).toDate()
+        : value instanceof Date
+          ? value
+          : null;
+    return date ? date.toLocaleDateString() : "-";
+  };
+
+  const loadInstallments = async (tenant: string, contractId: string) => {
+    setInstallmentsLoading(true);
+    setInstallmentsError(null);
+    try {
+      const list = await listInstallmentsByContract(tenant, contractId);
+      setInstallments(list);
+    } catch (err: any) {
+      setInstallmentsError(err?.message ?? "No se pudieron cargar cuotas.");
+    } finally {
+      setInstallmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!tenantId || !contract) return;
+    loadInstallments(tenantId, contract.id);
+  }, [tenantId, contract]);
 
   if (loading || pageLoading) {
     return <div className="text-sm text-zinc-600">Cargando...</div>;
@@ -183,7 +221,76 @@ export default function ContractDetailPage({ params }: PageProps) {
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         {tab === "cuotas" && (
-          <div className="text-sm text-zinc-600">Cuotas: placeholder.</div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-zinc-600">
+                Cuotas generadas por mes.
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!tenantId || !contract) return;
+                  const ok = window.confirm(
+                    "Esto creara cuotas mensuales para este contrato."
+                  );
+                  if (!ok) return;
+                  setInstallmentsError(null);
+                  setInstallmentsLoading(true);
+                  try {
+                    await generateInstallmentsForContract(tenantId, contract);
+                    await loadInstallments(tenantId, contract.id);
+                  } catch (err: any) {
+                    setInstallmentsError(
+                      err?.message ?? "No se pudieron generar cuotas."
+                    );
+                  } finally {
+                    setInstallmentsLoading(false);
+                  }
+                }}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+              >
+                Generar cuotas
+              </button>
+            </div>
+            {installmentsError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {installmentsError}
+              </div>
+            )}
+            {installmentsLoading ? (
+              <div className="text-sm text-zinc-600">Cargando cuotas...</div>
+            ) : installments.length === 0 ? (
+              <div className="text-sm text-zinc-600">
+                Sin cuotas generadas.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {installments.map((installment) => (
+                  <div
+                    key={installment.id}
+                    className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-medium text-zinc-900">
+                        Periodo {installment.period}
+                      </div>
+                      <div className="text-xs text-zinc-500">
+                        Vence: {formatDueDate(installment.dueDate)}
+                      </div>
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      Estado: {installment.status}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-600">
+                      <span>Total: {installment.totals.total}</span>
+                      <span>Pagado: {installment.totals.paid}</span>
+                      <span>Saldo: {installment.totals.due}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         {tab === "garantes" && (
           <div className="space-y-3">
