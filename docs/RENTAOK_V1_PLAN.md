@@ -62,6 +62,28 @@ QA Manual (Checklist) - Commit 3.1
 - Registrar pago con "sin comprobante" => paymentFlags.hasUnverifiedPayments true + badge visible
 - Verificar en Firestore que existe payment en /payments
 
+QA Manual (Checklist) - Commit 3.2
+- En una cuota:
+  - Agregar EXPENSAS 20000 => totals.total sube, due sube
+  - Agregar DESCUENTO -5000 => totals.total baja, due baja
+  - Borrar EXPENSAS => totals vuelve
+- Si cuota ya tiene paid parcial:
+  - Agregar item => due se recalcula (no tocar paid)
+- Validar que status:
+  - paid == 0 => POR_VENCER / VENCE_HOY / VENCIDA
+  - paid > 0 && paid < total => PARCIAL
+  - paid >= total => PAGADA
+
+QA Manual (Checklist) - Commit 3.3
+- En una cuota con due > 0:
+  - Click "Marcar pagada (sin comprobante)"
+  - Ver status PAGADA, due 0, paid == total, badge visible
+  - Ver payment doc creado en /payments con withoutReceipt=true
+- En una cuota:
+  - Agregar mora 3000
+  - Ver totals.total aumenta y due aumenta si no esta pagada
+  - Ver item creado en /items con label "Mora"
+
 Etapa 4 - Notificaciones v1 (solo inquilino)
 - Commits chicos:
   - feat: tenant-only notification config and overrides
@@ -69,6 +91,14 @@ Etapa 4 - Notificaciones v1 (solo inquilino)
 - Checkpoints verificables:
   - Configuracion de notificaciones solo al inquilino
   - Overrides por cuota respetados
+
+QA Manual (Checklist) - Etapa 4.1
+- Activar notificaciones en contrato:
+  - recipients se setean SOLO a tenant.email/tenant.whatsapp (si existen)
+- En cuotas:
+  - override OFF para una cuota -> se guarda notificationOverride.enabled=false
+  - volver a heredar -> se elimina notificationOverride
+- No hay recipients manuales.
 
 Etapa 5 - Export ZIP obligatorio
 - Commits chicos:

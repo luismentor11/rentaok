@@ -7,19 +7,49 @@ import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { getContract, ContractRecord } from "@/lib/db/contracts";
 import {
+  setInstallmentNotificationOverride,
+  updateContractNotificationConfig,
+} from "@/lib/db/notifications";
+import {
   generateInstallmentsForContract,
+  listInstallmentItems,
   listInstallmentsByContract,
+  upsertInstallmentItem,
+  deleteInstallmentItem,
+  addLateFeeItem,
   registerInstallmentPayment,
+  markInstallmentPaidWithoutReceipt,
+  InstallmentItemRecord,
+  InstallmentItemType,
   InstallmentRecord,
 } from "@/lib/db/installments";
 
 const tabOptions = [
   { key: "cuotas", label: "Cuotas" },
   { key: "garantes", label: "Garantes" },
-  { key: "notificaciones", label: "Config Notificaciones" },
+  { key: "notificaciones", label: "Notificaciones" },
   { key: "bitacora", label: "Bitacora" },
   { key: "zip", label: "Export ZIP" },
 ] as const;
+
+const additionalItemTypes: { value: InstallmentItemType; label: string }[] = [
+  { value: "EXPENSAS", label: "Expensas" },
+  { value: "ROTURAS", label: "Roturas" },
+  { value: "OTROS", label: "Otros" },
+  { value: "DESCUENTO", label: "Descuento" },
+];
+
+const itemTypeLabels: Partial<Record<InstallmentItemType, string>> = {
+  ALQUILER: "Alquiler",
+  EXPENSAS: "Expensas",
+  ROTURAS: "Roturas",
+  OTROS: "Otros",
+  DESCUENTO: "Descuento",
+  OTRO: "Otro",
+  SERVICIOS: "Servicios",
+  MORA: "Mora",
+  AJUSTE: "Ajuste",
+};
 
 type TabKey = (typeof tabOptions)[number]["key"];
 
@@ -37,6 +67,18 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [installmentsError, setInstallmentsError] = useState<string | null>(
     null
   );
+  const [installmentActions, setInstallmentActions] = useState<
+    Record<string, { markPaid?: boolean; notifyToggle?: boolean }>
+  >({});
+  const [installmentItems, setInstallmentItems] = useState<
+    Record<string, InstallmentItemRecord[]>
+  >({});
+  const [installmentItemsLoading, setInstallmentItemsLoading] = useState<
+    Record<string, boolean>
+  >({});
+  const [installmentItemsError, setInstallmentItemsError] = useState<
+    Record<string, string | null>
+  >({});
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentInstallment, setPaymentInstallment] =
     useState<InstallmentRecord | null>(null);
@@ -45,9 +87,32 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
+  const [itemInstallment, setItemInstallment] =
+    useState<InstallmentRecord | null>(null);
+  const [itemEditing, setItemEditing] = useState<InstallmentItemRecord | null>(
+    null
+  );
+  const [itemType, setItemType] =
+    useState<InstallmentItemType>("EXPENSAS");
+  const [itemLabel, setItemLabel] = useState("");
+  const [itemAmount, setItemAmount] = useState("");
+  const [itemSubmitting, setItemSubmitting] = useState(false);
+  const [itemError, setItemError] = useState<string | null>(null);
+  const [lateFeeModalOpen, setLateFeeModalOpen] = useState(false);
+  const [lateFeeInstallment, setLateFeeInstallment] =
+    useState<InstallmentRecord | null>(null);
+  const [lateFeeAmount, setLateFeeAmount] = useState("");
+  const [lateFeeSubmitting, setLateFeeSubmitting] = useState(false);
+  const [lateFeeError, setLateFeeError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("cuotas");
+  const [contractNotificationSaving, setContractNotificationSaving] =
+    useState(false);
+  const [contractNotificationError, setContractNotificationError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -114,6 +179,30 @@ export default function ContractDetailPage({ params }: PageProps) {
     }
   };
 
+  const loadInstallmentItems = async (tenant: string, installmentId: string) => {
+    setInstallmentItemsLoading((prev) => ({ ...prev, [installmentId]: true }));
+    setInstallmentItemsError((prev) => ({ ...prev, [installmentId]: null }));
+    try {
+      const list = await listInstallmentItems(tenant, installmentId);
+      setInstallmentItems((prev) => ({ ...prev, [installmentId]: list }));
+    } catch (err: any) {
+      setInstallmentItemsError((prev) => ({
+        ...prev,
+        [installmentId]: err?.message ?? "No se pudieron cargar items.",
+      }));
+    } finally {
+      setInstallmentItemsLoading((prev) => ({ ...prev, [installmentId]: false }));
+    }
+  };
+
+  const ensureInstallmentItems = async (
+    tenant: string,
+    installmentId: string
+  ) => {
+    if (installmentItems[installmentId]) return;
+    await loadInstallmentItems(tenant, installmentId);
+  };
+
   const openPaymentModal = (installment: InstallmentRecord) => {
     setPaymentInstallment(installment);
     setPaymentAmount("");
@@ -127,6 +216,41 @@ export default function ContractDetailPage({ params }: PageProps) {
     if (paymentSubmitting) return;
     setPaymentModalOpen(false);
     setPaymentInstallment(null);
+  };
+
+  const openItemModal = async (
+    installment: InstallmentRecord,
+    item?: InstallmentItemRecord
+  ) => {
+    if (!tenantId) return;
+    await ensureInstallmentItems(tenantId, installment.id);
+    setItemInstallment(installment);
+    setItemEditing(item ?? null);
+    setItemType(item?.type ?? "EXPENSAS");
+    setItemLabel(item?.label ?? "");
+    setItemAmount(item ? String(item.amount) : "");
+    setItemError(null);
+    setItemModalOpen(true);
+  };
+
+  const closeItemModal = () => {
+    if (itemSubmitting) return;
+    setItemModalOpen(false);
+    setItemInstallment(null);
+    setItemEditing(null);
+  };
+
+  const openLateFeeModal = (installment: InstallmentRecord) => {
+    setLateFeeInstallment(installment);
+    setLateFeeAmount("");
+    setLateFeeError(null);
+    setLateFeeModalOpen(true);
+  };
+
+  const closeLateFeeModal = () => {
+    if (lateFeeSubmitting) return;
+    setLateFeeModalOpen(false);
+    setLateFeeInstallment(null);
   };
 
   useEffect(() => {
@@ -154,14 +278,51 @@ export default function ContractDetailPage({ params }: PageProps) {
     return null;
   }
 
+  const tenantEmail = contract.parties.tenant.email?.trim();
+  const tenantWhatsapp = contract.parties.tenant.whatsapp?.trim();
+  const contractNotificationsEnabled = Boolean(contract.notificationConfig?.enabled);
+
+  const saveContractNotificationConfig = async (nextEnabled: boolean) => {
+    if (!tenantId) return;
+    setContractNotificationSaving(true);
+    setContractNotificationError(null);
+    try {
+      await updateContractNotificationConfig(tenantId, contract.id, nextEnabled);
+      setContract((prev) =>
+        prev
+          ? {
+              ...prev,
+              notificationConfig: {
+                enabled: nextEnabled,
+                emailRecipients: tenantEmail ? [tenantEmail] : [],
+                whatsappRecipients: tenantWhatsapp ? [tenantWhatsapp] : [],
+              },
+            }
+          : prev
+      );
+    } catch (err: any) {
+      setContractNotificationError(
+        err?.message ?? "No se pudo guardar la configuracion."
+      );
+    } finally {
+      setContractNotificationSaving(false);
+    }
+  };
+
   return (
     <section className="space-y-6">
       <div className="space-y-1">
         <div className="text-sm text-zinc-500">Contrato {contract.id}</div>
         <h1 className="text-2xl font-semibold text-zinc-900">
-          {contract.property.title}
+          {contract.propertyTitle ||
+            (contract as any)?.property?.title ||
+            "-"}
         </h1>
-        <p className="text-sm text-zinc-600">{contract.property.address}</p>
+        <p className="text-sm text-zinc-600">
+          {contract.propertyAddress ||
+            (contract as any)?.property?.address ||
+            "-"}
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -289,14 +450,29 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                {installments.map((installment) => (
-                  <div
+                {installments.map((installment) => {
+                  const overrideEnabled = installment.notificationOverride?.enabled;
+                  const hasOverride = overrideEnabled !== undefined;
+                  const notifyEnabled = hasOverride
+                    ? overrideEnabled
+                    : contractNotificationsEnabled;
+                  const notifyDisabled =
+                    installmentActions[installment.id]?.notifyToggle ||
+                    (!contractNotificationsEnabled && !hasOverride);
+
+                  return (
+                    <div
                     key={installment.id}
                     className="rounded-lg border border-zinc-200 p-3 text-sm text-zinc-700"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-medium text-zinc-900">
-                        Periodo {installment.period}
+                      <div className="flex items-center gap-2 font-medium text-zinc-900">
+                        <span>Periodo {installment.period}</span>
+                        {hasOverride && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            Override
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-zinc-500">
                         Vence: {formatDueDate(installment.dueDate)}
@@ -315,17 +491,250 @@ export default function ContractDetailPage({ params }: PageProps) {
                       <span>Pagado: {installment.totals.paid}</span>
                       <span>Saldo: {installment.totals.due}</span>
                     </div>
+                    <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-semibold text-zinc-700">
+                            Notificaciones
+                          </div>
+                          <div className="text-[11px] text-zinc-500">
+                            {hasOverride
+                              ? "Override activo para esta cuota."
+                              : "Heredando configuracion del contrato."}
+                          </div>
+                        </div>
+                        <label className="flex items-center gap-2 text-xs text-zinc-600">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(notifyEnabled)}
+                            disabled={notifyDisabled}
+                            onChange={async () => {
+                              if (!tenantId) return;
+                              if (!contractNotificationsEnabled && !hasOverride) {
+                                return;
+                              }
+                              setInstallmentActions((prev) => ({
+                                ...prev,
+                                [installment.id]: {
+                                  ...prev[installment.id],
+                                  notifyToggle: true,
+                                },
+                              }));
+                              setInstallmentsError(null);
+                              try {
+                                await setInstallmentNotificationOverride(
+                                  tenantId,
+                                  installment.id,
+                                  hasOverride ? null : false
+                                );
+                                await loadInstallments(
+                                  tenantId,
+                                  installment.contractId
+                                );
+                              } catch (err: any) {
+                                setInstallmentsError(
+                                  err?.message ??
+                                    "No se pudo actualizar la notificacion."
+                                );
+                              } finally {
+                                setInstallmentActions((prev) => ({
+                                  ...prev,
+                                  [installment.id]: {
+                                    ...prev[installment.id],
+                                    notifyToggle: false,
+                                  },
+                                }));
+                              }
+                            }}
+                          />
+                          Notificar esta cuota
+                        </label>
+                      </div>
+                      {!contractNotificationsEnabled && !hasOverride && (
+                        <div className="mt-1 text-[11px] text-zinc-500">
+                          El contrato tiene notificaciones desactivadas.
+                        </div>
+                      )}
+                    </div>
                     <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => openPaymentModal(installment)}
-                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
-                      >
-                        Registrar pago
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openPaymentModal(installment)}
+                          className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                        >
+                          Registrar pago
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openLateFeeModal(installment)}
+                          className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                        >
+                          Agregar mora
+                        </button>
+                        <button
+                          type="button"
+                          disabled={installmentActions[installment.id]?.markPaid}
+                          onClick={async () => {
+                            if (!tenantId) return;
+                            const ok = window.confirm(
+                              "Esto marca la cuota como PAGADA sin comprobante. ¿Continuar?"
+                            );
+                            if (!ok) return;
+                            setInstallmentActions((prev) => ({
+                              ...prev,
+                              [installment.id]: {
+                                ...prev[installment.id],
+                                markPaid: true,
+                              },
+                            }));
+                            setInstallmentsError(null);
+                            try {
+                              await markInstallmentPaidWithoutReceipt(
+                                tenantId,
+                                installment.id
+                              );
+                              await loadInstallments(
+                                tenantId,
+                                installment.contractId
+                              );
+                            } catch (err: any) {
+                              setInstallmentsError(
+                                err?.message ??
+                                  "No se pudo marcar como pagada."
+                              );
+                            } finally {
+                              setInstallmentActions((prev) => ({
+                                ...prev,
+                                [installment.id]: {
+                                  ...prev[installment.id],
+                                  markPaid: false,
+                                },
+                              }));
+                            }
+                          }}
+                          className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed"
+                        >
+                          {installmentActions[installment.id]?.markPaid
+                            ? "Marcando..."
+                            : "Marcar pagada (sin comprobante)"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 p-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-zinc-700">
+                        <span>Adicionales</span>
+                        <button
+                          type="button"
+                          onClick={() => openItemModal(installment)}
+                          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
+                        >
+                          Agregar adicional
+                        </button>
+                      </div>
+                      {installmentItemsError[installment.id] && (
+                        <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                          {installmentItemsError[installment.id]}
+                        </div>
+                      )}
+                      {installmentItemsLoading[installment.id] ? (
+                        <div className="mt-2 text-xs text-zinc-500">
+                          Cargando items...
+                        </div>
+                      ) : installmentItems[installment.id] ? (
+                        installmentItems[installment.id].length === 0 ? (
+                          <div className="mt-2 text-xs text-zinc-500">
+                            Sin items registrados.
+                          </div>
+                        ) : (
+                          <div className="mt-2 space-y-2 text-xs text-zinc-600">
+                            {installmentItems[installment.id].map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded border border-zinc-200 bg-white px-2 py-1"
+                              >
+                                <div>
+                                  <div className="font-medium text-zinc-800">
+                                    {itemTypeLabels[item.type] ?? item.type}
+                                  </div>
+                                  <div className="text-[11px] text-zinc-500">
+                                    {item.label}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-zinc-700">
+                                    {item.amount}
+                                  </span>
+                                  {item.type !== "ALQUILER" && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => openItemModal(installment, item)}
+                                        className="text-[11px] text-zinc-600 hover:text-zinc-900"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          if (!tenantId) return;
+                                          const ok = window.confirm(
+                                            "Eliminar este item?"
+                                          );
+                                          if (!ok) return;
+                                          setInstallmentItemsError((prev) => ({
+                                            ...prev,
+                                            [installment.id]: null,
+                                          }));
+                                          try {
+                                            await deleteInstallmentItem(
+                                              tenantId,
+                                              installment.id,
+                                              item.id
+                                            );
+                                            await loadInstallmentItems(
+                                              tenantId,
+                                              installment.id
+                                            );
+                                            await loadInstallments(
+                                              tenantId,
+                                              installment.contractId
+                                            );
+                                          } catch (err: any) {
+                                            setInstallmentItemsError((prev) => ({
+                                              ...prev,
+                                              [installment.id]:
+                                                err?.message ??
+                                                "No se pudo borrar el item.",
+                                            }));
+                                          }
+                                        }}
+                                        className="text-[11px] text-red-600 hover:text-red-700"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ) : (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => tenantId && loadInstallmentItems(tenantId, installment.id)}
+                            className="text-[11px] font-medium text-zinc-600 hover:text-zinc-900"
+                          >
+                            Cargar items
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -353,8 +762,51 @@ export default function ContractDetailPage({ params }: PageProps) {
           </div>
         )}
         {tab === "notificaciones" && (
-          <div className="text-sm text-zinc-600">
-            Configuracion de notificaciones: placeholder.
+          <div className="space-y-4 text-sm text-zinc-600">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-zinc-900">
+                  Activar notificaciones (solo inquilino)
+                </div>
+                <div className="text-xs text-zinc-500">
+                  Se aplica a todas las cuotas salvo override.
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-xs text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={contractNotificationsEnabled}
+                  disabled={contractNotificationSaving}
+                  onChange={(event) =>
+                    saveContractNotificationConfig(event.target.checked)
+                  }
+                />
+                {contractNotificationSaving
+                  ? "Guardando..."
+                  : contractNotificationsEnabled
+                    ? "Activo"
+                    : "Inactivo"}
+              </label>
+            </div>
+            {contractNotificationError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {contractNotificationError}
+              </div>
+            )}
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+              <div className="text-xs font-semibold text-zinc-500">
+                Destinatarios detectados
+              </div>
+              <div className="mt-2 text-xs text-zinc-600">
+                Email: {tenantEmail || "(sin email)"}
+              </div>
+              <div className="text-xs text-zinc-600">
+                WhatsApp: {tenantWhatsapp || "(sin whatsapp)"}
+              </div>
+            </div>
+            <div className="text-xs text-zinc-500">
+              v1: solo inquilino. No se permiten destinatarios manuales.
+            </div>
           </div>
         )}
         {tab === "bitacora" && (
@@ -474,6 +926,235 @@ export default function ContractDetailPage({ params }: PageProps) {
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {paymentSubmitting ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {itemModalOpen && itemInstallment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">
+                {itemEditing ? "Editar item" : "Agregar adicional"}
+              </h3>
+              <button
+                type="button"
+                onClick={closeItemModal}
+                className="text-sm text-zinc-500 hover:text-zinc-700"
+              >
+                Cerrar
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Periodo {itemInstallment.period}
+            </p>
+            {itemError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {itemError}
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Tipo
+                </label>
+                <select
+                  value={itemType}
+                  onChange={(event) =>
+                    setItemType(event.target.value as InstallmentItemType)
+                  }
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                >
+                  {additionalItemTypes.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Concepto
+                </label>
+                <input
+                  type="text"
+                  value={itemLabel}
+                  onChange={(event) => setItemLabel(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  placeholder="Ej: Expensas marzo"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Monto
+                </label>
+                <input
+                  type="number"
+                  value={itemAmount}
+                  onChange={(event) => setItemAmount(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  placeholder="1000"
+                />
+                {itemType === "DESCUENTO" && (
+                  <div className="mt-1 text-[11px] text-zinc-500">
+                    Se guarda como monto negativo.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeItemModal}
+                disabled={itemSubmitting}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={itemSubmitting}
+                onClick={async () => {
+                  if (!tenantId || !itemInstallment) return;
+                  const labelValue = itemLabel.trim();
+                  if (!labelValue) {
+                    setItemError("El concepto es obligatorio.");
+                    return;
+                  }
+                  let amountValue = Number(itemAmount);
+                  if (!Number.isFinite(amountValue) || amountValue === 0) {
+                    setItemError("El monto debe ser distinto de 0.");
+                    return;
+                  }
+                  if (itemType === "DESCUENTO" && amountValue > 0) {
+                    amountValue = -amountValue;
+                  }
+                  if (itemType !== "DESCUENTO" && amountValue <= 0) {
+                    setItemError("El monto debe ser mayor a 0.");
+                    return;
+                  }
+                  setItemSubmitting(true);
+                  setItemError(null);
+                  try {
+                    await upsertInstallmentItem(
+                      tenantId,
+                      itemInstallment.id,
+                      {
+                        id: itemEditing?.id,
+                        type: itemType,
+                        label: labelValue,
+                        amount: amountValue,
+                      }
+                    );
+                    await loadInstallmentItems(tenantId, itemInstallment.id);
+                    await loadInstallments(tenantId, itemInstallment.contractId);
+                    setItemModalOpen(false);
+                    setItemInstallment(null);
+                    setItemEditing(null);
+                  } catch (err: any) {
+                    setItemError(
+                      err?.message ?? "No se pudo guardar el item."
+                    );
+                  } finally {
+                    setItemSubmitting(false);
+                  }
+                }}
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
+                {itemSubmitting ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lateFeeModalOpen && lateFeeInstallment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">
+                Agregar mora
+              </h3>
+              <button
+                type="button"
+                onClick={closeLateFeeModal}
+                className="text-sm text-zinc-500 hover:text-zinc-700"
+              >
+                Cerrar
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-zinc-500">
+              Periodo {lateFeeInstallment.period}
+            </p>
+            {lateFeeError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {lateFeeError}
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Monto
+                </label>
+                <input
+                  type="number"
+                  value={lateFeeAmount}
+                  onChange={(event) => setLateFeeAmount(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  placeholder="3000"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeLateFeeModal}
+                disabled={lateFeeSubmitting}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={lateFeeSubmitting}
+                onClick={async () => {
+                  if (!tenantId || !lateFeeInstallment) return;
+                  const amountValue = Number(lateFeeAmount);
+                  if (!Number.isFinite(amountValue) || amountValue <= 0) {
+                    setLateFeeError("El monto debe ser mayor a 0.");
+                    return;
+                  }
+                  setLateFeeSubmitting(true);
+                  setLateFeeError(null);
+                  try {
+                    await addLateFeeItem(
+                      tenantId,
+                      lateFeeInstallment.id,
+                      amountValue
+                    );
+                    await loadInstallmentItems(
+                      tenantId,
+                      lateFeeInstallment.id
+                    );
+                    await loadInstallments(
+                      tenantId,
+                      lateFeeInstallment.contractId
+                    );
+                    setLateFeeModalOpen(false);
+                    setLateFeeInstallment(null);
+                  } catch (err: any) {
+                    setLateFeeError(
+                      err?.message ?? "No se pudo agregar la mora."
+                    );
+                  } finally {
+                    setLateFeeSubmitting(false);
+                  }
+                }}
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
+                {lateFeeSubmitting ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </div>

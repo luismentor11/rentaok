@@ -2,6 +2,7 @@
 
 import {
   Timestamp,
+  Transaction,
   addDoc,
   collection,
   doc,
@@ -32,8 +33,7 @@ export type InstallmentTotals = {
 };
 
 export type InstallmentNotificationOverride = {
-  enabledR1?: boolean;
-  enabledR2?: boolean;
+  enabled?: boolean;
 };
 
 export type InstallmentPaymentFlags = {
@@ -47,7 +47,7 @@ export type Installment = {
   status: InstallmentStatus;
   totals: InstallmentTotals;
   paymentFlags?: InstallmentPaymentFlags;
-  notificationConfigOverride?: InstallmentNotificationOverride;
+  notificationOverride?: InstallmentNotificationOverride;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -56,6 +56,8 @@ export type InstallmentItemType =
   | "ALQUILER"
   | "EXPENSAS"
   | "ROTURAS"
+  | "DESCUENTO"
+  | "OTROS"
   | "SERVICIOS"
   | "MORA"
   | "AJUSTE"
@@ -68,6 +70,8 @@ export type InstallmentItem = {
   createdAt?: unknown;
   updatedAt?: unknown;
 };
+
+export type InstallmentItemRecord = InstallmentItem & { id: string };
 
 export type InstallmentPayment = {
   amount: number;
@@ -90,6 +94,54 @@ const getStatusForDueDate = (dueDate: Date): InstallmentStatus => {
   if (dueNumber > todayNumber) return "POR_VENCER";
   if (dueNumber === todayNumber) return "VENCE_HOY";
   return "VENCIDA";
+};
+
+const getDueDateFromInstallment = (installment: Installment) => {
+  const maybeDate = (installment.dueDate as any)?.toDate?.();
+  if (maybeDate instanceof Date) return maybeDate;
+  return installment.dueDate instanceof Date ? installment.dueDate : new Date();
+};
+
+const recomputeInstallmentTotalsAndStatusTx = async (
+  transaction: Transaction,
+  tenantId: string,
+  installmentId: string
+) => {
+  const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
+  const installmentSnap = await transaction.get(installmentRef);
+  if (!installmentSnap.exists()) {
+    throw new Error("La cuota no existe.");
+  }
+
+  const itemsQuery = query(
+    collection(db, "tenants", tenantId, "installments", installmentId, "items")
+  );
+  const itemsSnap = await transaction.get(itemsQuery);
+  const total = itemsSnap.docs.reduce((sum, itemSnap) => {
+    const amount = Number((itemSnap.data() as InstallmentItem).amount ?? 0);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+
+  const installment = installmentSnap.data() as Installment;
+  const paid = Number(installment.totals?.paid ?? 0);
+  const due = Math.max(total - paid, 0);
+  const updatePayload: Record<string, unknown> = {
+    totals: { total, paid, due },
+    updatedAt: serverTimestamp(),
+  };
+
+  if (installment.status !== "EN_ACUERDO") {
+    const dueDate = getDueDateFromInstallment(installment);
+    const nextStatus =
+      paid >= total
+        ? "PAGADA"
+        : paid > 0
+          ? "PARCIAL"
+          : getStatusForDueDate(dueDate);
+    updatePayload.status = nextStatus;
+  }
+
+  transaction.update(installmentRef, updatePayload);
 };
 
 const getMonthPeriods = (startDate: string, endDate: string) => {
@@ -183,6 +235,123 @@ export async function listInstallmentsByContract(
   })) as InstallmentRecord[];
 }
 
+export async function listInstallmentItems(
+  tenantId: string,
+  installmentId: string
+) {
+  const itemsRef = collection(
+    db,
+    "tenants",
+    tenantId,
+    "installments",
+    installmentId,
+    "items"
+  );
+  const q = query(itemsRef, orderBy("createdAt", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...(docSnap.data() as InstallmentItem),
+  })) as InstallmentItemRecord[];
+}
+
+export async function upsertInstallmentItem(
+  tenantId: string,
+  installmentId: string,
+  item: { id?: string; type: InstallmentItemType; label: string; amount: number }
+) {
+  const label = item.label.trim();
+  if (!label) {
+    throw new Error("El concepto es obligatorio.");
+  }
+
+  let amount = Number(item.amount);
+  if (!Number.isFinite(amount) || amount === 0) {
+    throw new Error("El monto debe ser distinto de 0.");
+  }
+  if (item.type === "DESCUENTO" && amount > 0) {
+    amount = -amount;
+  }
+  if (item.type !== "DESCUENTO" && amount <= 0) {
+    throw new Error("El monto debe ser mayor a 0.");
+  }
+
+  const itemsRef = collection(
+    db,
+    "tenants",
+    tenantId,
+    "installments",
+    installmentId,
+    "items"
+  );
+  const itemRef = item.id ? doc(itemsRef, item.id) : doc(itemsRef);
+
+  await runTransaction(db, async (transaction) => {
+    if (item.id) {
+      transaction.update(itemRef, {
+        type: item.type,
+        label,
+        amount,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      transaction.set(itemRef, {
+        type: item.type,
+        label,
+        amount,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      } satisfies InstallmentItem);
+    }
+
+    await recomputeInstallmentTotalsAndStatusTx(
+      transaction,
+      tenantId,
+      installmentId
+    );
+  });
+}
+
+export async function deleteInstallmentItem(
+  tenantId: string,
+  installmentId: string,
+  itemId: string
+) {
+  const itemRef = doc(
+    db,
+    "tenants",
+    tenantId,
+    "installments",
+    installmentId,
+    "items",
+    itemId
+  );
+  await runTransaction(db, async (transaction) => {
+    transaction.delete(itemRef);
+    await recomputeInstallmentTotalsAndStatusTx(
+      transaction,
+      tenantId,
+      installmentId
+    );
+  });
+}
+
+export async function addLateFeeItem(
+  tenantId: string,
+  installmentId: string,
+  amount: number
+) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("El monto de mora debe ser mayor a 0.");
+  }
+
+  await upsertInstallmentItem(tenantId, installmentId, {
+    type: "MORA",
+    label: "Mora",
+    amount,
+  });
+}
+
 export async function registerInstallmentPayment(
   tenantId: string,
   installmentId: string,
@@ -210,10 +379,7 @@ export async function registerInstallmentPayment(
     const paid = Number(totals.paid ?? 0);
     const newPaid = paid + input.amount;
     const newDue = Math.max(total - newPaid, 0);
-    const dueDate =
-      typeof (data.dueDate as any)?.toDate === "function"
-        ? (data.dueDate as any).toDate()
-        : new Date();
+    const dueDate = getDueDateFromInstallment(data);
     const newStatus =
       newPaid >= total
         ? "PAGADA"
@@ -239,5 +405,50 @@ export async function registerInstallmentPayment(
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     } satisfies InstallmentPayment);
+  });
+}
+
+export async function markInstallmentPaidWithoutReceipt(
+  tenantId: string,
+  installmentId: string,
+  note?: string
+) {
+  const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
+  const paymentRef = doc(
+    collection(db, "tenants", tenantId, "installments", installmentId, "payments")
+  );
+  const noteValue = note?.trim() || "Marcada pagada sin comprobante";
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(installmentRef);
+    if (!snap.exists()) {
+      throw new Error("La cuota no existe.");
+    }
+
+    const data = snap.data() as Installment;
+    const total = Number(data.totals?.total ?? 0);
+    if (!Number.isFinite(total) || total <= 0) {
+      throw new Error("Total inválido para marcar pagada.");
+    }
+    const paidPrev = Number(data.totals?.paid ?? 0);
+    const missing = Math.max(total - paidPrev, 0);
+
+    transaction.update(installmentRef, {
+      "totals.paid": total,
+      "totals.due": 0,
+      status: "PAGADA",
+      "paymentFlags.hasUnverifiedPayments": true,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (missing > 0) {
+      transaction.set(paymentRef, {
+        amount: missing,
+        withoutReceipt: true,
+        note: noteValue,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      } satisfies InstallmentPayment);
+    }
   });
 }
