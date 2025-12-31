@@ -62,6 +62,19 @@ export function getNotificationDueToday(
   return null;
 }
 
+export function getGuarantorEscalationDueToday(
+  installment: Installment,
+  todayDate: Date
+) {
+  const dueDate = getDueDateFromInstallment(installment);
+  if (!dueDate) return false;
+
+  const todayNumber = toDateNumber(todayDate);
+  const escalationDate = new Date(dueDate);
+  escalationDate.setDate(escalationDate.getDate() + 5);
+  return toDateNumber(escalationDate) === todayNumber;
+}
+
 export function buildTenantNotificationMessage(params: {
   installment: Installment;
   contractId?: string;
@@ -82,6 +95,33 @@ export function buildTenantNotificationMessage(params: {
     `Vencimiento: ${dueDateLabel}`,
     `Estado: ${installment.status}`,
     `Monto adeudado: ${dueAmount}`,
+  ];
+
+  if (contractId) {
+    lines.push(`Contrato: ${contractId}`);
+  }
+
+  const body = lines.join("\n");
+  return {
+    subject,
+    body,
+    whatsappText: body,
+  };
+}
+
+export function buildGuarantorNotificationMessage(params: {
+  installment: Installment;
+  contractId?: string;
+}) {
+  const { installment, contractId } = params;
+  const dueDate = getDueDateFromInstallment(installment);
+  const dueDateLabel = dueDate ? formatDateDdMmYyyy(dueDate) : "-";
+  const subject = `Aviso a garante - Periodo ${installment.period}`;
+  const lines = [
+    `Periodo: ${installment.period}`,
+    `Vencimiento: ${dueDateLabel}`,
+    `Estado: ${installment.status}`,
+    "Se aplicara mora segun contrato si no se regulariza.",
   ];
 
   if (contractId) {

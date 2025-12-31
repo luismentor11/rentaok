@@ -111,6 +111,14 @@ QA Manual (Checklist) - Etapa 4.2
   - botones abren wa.me y mailto correctos (texto correcto)
 - Si cuota PAGADA -> no aparece.
 
+QA Manual (Checklist) - Etapa 5.1
+- Config enabled=true
+- Cuota con dueDate = hoy - 5 dias y status VENCIDA => aparece en seccion garantes
+- Si status EN_ACUERDO => NO aparece
+- Si status PAGADA => NO aparece
+- Verificar que el mensaje a garante NO contiene importes
+- Verificar que botones abren wa.me/mailto para cada garante
+
 Etapa 5 - Export ZIP obligatorio
 - Commits chicos:
   - feat: export ZIP with contract + installments

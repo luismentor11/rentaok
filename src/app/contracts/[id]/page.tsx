@@ -11,6 +11,8 @@ import {
   updateContractNotificationConfig,
   buildTenantNotificationMessage,
   getNotificationDueToday,
+  getGuarantorEscalationDueToday,
+  buildGuarantorNotificationMessage,
 } from "@/lib/db/notifications";
 import {
   generateInstallmentsForContract,
@@ -332,6 +334,31 @@ export default function ContractDetailPage({ params }: PageProps) {
           ): item is {
             installment: InstallmentRecord;
             dueType: "PRE_DUE_5" | "POST_DUE_1";
+            message: { subject: string; body: string; whatsappText: string };
+          } => item !== null
+        )
+    : [];
+
+  const guarantorNotificationsDueToday = contractNotificationsEnabled
+    ? installments
+        .map((installment) => {
+          if (installment.status === "PAGADA") return null;
+          if (installment.status === "EN_ACUERDO") return null;
+          if (installment.notificationOverride?.enabled === false) return null;
+          if (!getGuarantorEscalationDueToday(installment, todayDate)) {
+            return null;
+          }
+          const message = buildGuarantorNotificationMessage({
+            installment,
+            contractId: contract.id,
+          });
+          return { installment, message };
+        })
+        .filter(
+          (
+            item
+          ): item is {
+            installment: InstallmentRecord;
             message: { subject: string; body: string; whatsappText: string };
           } => item !== null
         )
@@ -944,6 +971,137 @@ export default function ContractDetailPage({ params }: PageProps) {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+            <div className="rounded-md border border-zinc-200 bg-white p-3">
+              <div className="text-xs font-semibold text-zinc-700">
+                Escalamiento a garantes (dia +5)
+              </div>
+              {!contractNotificationsEnabled ? (
+                <div className="mt-2 text-xs text-zinc-500">
+                  El contrato tiene notificaciones desactivadas.
+                </div>
+              ) : contract.guarantors.length === 0 ? (
+                <div className="mt-2 text-xs text-zinc-500">(sin garantes)</div>
+              ) : guarantorNotificationsDueToday.length === 0 ? (
+                <div className="mt-2 text-xs text-zinc-500">
+                  Sin cuotas para escalar hoy.
+                </div>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  {guarantorNotificationsDueToday.map(
+                    ({ installment, message }) => (
+                      <div
+                        key={`${installment.id}-guarantor`}
+                        className="rounded-md border border-zinc-200 p-3 text-xs text-zinc-600"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium text-zinc-900">
+                            Periodo {installment.period}
+                          </div>
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            dia +5
+                          </span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-zinc-500">
+                          Vence: {formatDueDate(installment.dueDate)} | Estado:{" "}
+                          {installment.status}
+                        </div>
+                        <details className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-1">
+                          <summary className="cursor-pointer text-[11px] font-medium text-zinc-600">
+                            Preview del mensaje
+                          </summary>
+                          <div className="mt-2 space-y-2 text-[11px] text-zinc-600">
+                            <div>
+                              <div className="font-semibold text-zinc-700">
+                                Email
+                              </div>
+                              <div className="whitespace-pre-wrap">
+                                Asunto: {message.subject}
+                                {"\n\n"}
+                                {message.body}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-zinc-700">
+                                WhatsApp
+                              </div>
+                              <div className="whitespace-pre-wrap">
+                                {message.whatsappText}
+                              </div>
+                            </div>
+                          </div>
+                        </details>
+                        <div className="mt-3 space-y-2">
+                          {contract.guarantors.map((guarantor, index) => {
+                            const guarantorEmail = guarantor.email?.trim();
+                            const guarantorWhatsapp = guarantor.whatsapp?.trim();
+                            const whatsappNumber = guarantorWhatsapp
+                              ? guarantorWhatsapp.replace(/\D/g, "")
+                              : "";
+                            const emailHref = guarantorEmail
+                              ? `mailto:${guarantorEmail}?subject=${encodeURIComponent(
+                                  message.subject
+                                )}&body=${encodeURIComponent(message.body)}`
+                              : "";
+                            const whatsappHref = whatsappNumber
+                              ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+                                  message.whatsappText
+                                )}`
+                              : "";
+
+                            return (
+                              <div
+                                key={`${installment.id}-${index}`}
+                                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-2"
+                              >
+                                <div className="text-[11px] font-semibold text-zinc-700">
+                                  {guarantor.fullName}
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {whatsappNumber ? (
+                                    <a
+                                      href={whatsappHref}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
+                                    >
+                                      WhatsApp
+                                    </a>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
+                                    >
+                                      WhatsApp (sin numero)
+                                    </button>
+                                  )}
+                                  {guarantorEmail ? (
+                                    <a
+                                      href={emailHref}
+                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
+                                    >
+                                      Email
+                                    </a>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      disabled
+                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
+                                    >
+                                      Email (sin email)
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )
+                  )}
                 </div>
               )}
             </div>
