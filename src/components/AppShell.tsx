@@ -60,9 +60,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </header>
-          <main className="flex-1 px-6 py-8">{children}</main>
+          <main className="flex-1 px-6 py-8 pb-28">{children}</main>
         </div>
       </div>
+      <footer className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 px-6 py-3 text-xs text-text-muted backdrop-blur">
+        <div className="mx-auto flex max-w-5xl flex-col gap-1">
+          <div>RentaOK by Mentora®</div>
+          <div>© 2025 Mentora. Todos los derechos reservados.</div>
+          <div>
+            RentaOK es una herramienta de gestión administrativa. No realiza
+            cobranzas legales ni garantiza el pago. La información y los
+            registros generados tienen fines operativos y documentales.
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
