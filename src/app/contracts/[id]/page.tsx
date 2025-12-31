@@ -30,6 +30,14 @@ import {
   PaymentMethod,
 } from "@/lib/db/installments";
 import { uploadPaymentReceipt } from "@/lib/storage/payments";
+import {
+  addContractEvent,
+  listContractEvents,
+  updateContractEventAttachments,
+  uploadEventAttachment,
+  EventRecord,
+  ContractEventType,
+} from "@/lib/db/events";
 
 const tabOptions = [
   { key: "cuotas", label: "Cuotas" },
@@ -44,6 +52,15 @@ const additionalItemTypes: { value: InstallmentItemType; label: string }[] = [
   { value: "ROTURAS", label: "Roturas" },
   { value: "OTROS", label: "Otros" },
   { value: "DESCUENTO", label: "Descuento" },
+];
+
+const eventTypeOptions: { value: ContractEventType; label: string }[] = [
+  { value: "MENSAJE", label: "Mensaje" },
+  { value: "LLAMADA", label: "Llamada" },
+  { value: "RECLAMO", label: "Reclamo" },
+  { value: "DAÑO", label: "Dano" },
+  { value: "ACUERDO", label: "Acuerdo" },
+  { value: "OTRO", label: "Otro" },
 ];
 
 const itemTypeLabels: Partial<Record<InstallmentItemType, string>> = {
@@ -86,6 +103,11 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [installmentItemsError, setInstallmentItemsError] = useState<
     Record<string, string | null>
   >({});
+  const [contractEvents, setContractEvents] = useState<EventRecord[]>([]);
+  const [contractEventsLoading, setContractEventsLoading] = useState(false);
+  const [contractEventsError, setContractEventsError] = useState<string | null>(
+    null
+  );
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentInstallment, setPaymentInstallment] =
     useState<InstallmentRecord | null>(null);
@@ -97,6 +119,15 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [eventType, setEventType] = useState<ContractEventType>("MENSAJE");
+  const [eventAt, setEventAt] = useState("");
+  const [eventDetail, setEventDetail] = useState("");
+  const [eventTags, setEventTags] = useState("");
+  const [eventInstallmentId, setEventInstallmentId] = useState("");
+  const [eventAttachments, setEventAttachments] = useState<File[]>([]);
+  const [eventAttachmentsKey, setEventAttachmentsKey] = useState(0);
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [eventError, setEventError] = useState<string | null>(null);
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [itemInstallment, setItemInstallment] =
     useState<InstallmentRecord | null>(null);
@@ -179,6 +210,16 @@ export default function ContractDetailPage({ params }: PageProps) {
     return date ? date.toLocaleDateString() : "-";
   };
 
+  const formatEventAt = (value: EventRecord["at"]) => {
+    const date =
+      typeof (value as any)?.toDate === "function"
+        ? (value as any).toDate()
+        : value instanceof Date
+          ? value
+          : null;
+    return date ? date.toLocaleString() : "-";
+  };
+
   const loadInstallments = async (tenant: string, contractId: string) => {
     setInstallmentsLoading(true);
     setInstallmentsError(null);
@@ -208,6 +249,21 @@ export default function ContractDetailPage({ params }: PageProps) {
     }
   };
 
+  const loadContractEvents = async (tenant: string, contractId: string) => {
+    setContractEventsLoading(true);
+    setContractEventsError(null);
+    try {
+      const list = await listContractEvents(tenant, contractId);
+      setContractEvents(list);
+    } catch (err: any) {
+      setContractEventsError(
+        err?.message ?? "No se pudieron cargar eventos."
+      );
+    } finally {
+      setContractEventsLoading(false);
+    }
+  };
+
   const ensureInstallmentItems = async (
     tenant: string,
     installmentId: string
@@ -232,6 +288,17 @@ export default function ContractDetailPage({ params }: PageProps) {
     if (paymentSubmitting) return;
     setPaymentModalOpen(false);
     setPaymentInstallment(null);
+  };
+
+  const resetEventForm = () => {
+    setEventType("MENSAJE");
+    setEventAt(toDateTimeInputValue(new Date()));
+    setEventDetail("");
+    setEventTags("");
+    setEventInstallmentId("");
+    setEventAttachments([]);
+    setEventAttachmentsKey((prev) => prev + 1);
+    setEventError(null);
   };
 
   const openItemModal = async (
@@ -272,6 +339,8 @@ export default function ContractDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (!tenantId || !contract) return;
     loadInstallments(tenantId, contract.id);
+    loadContractEvents(tenantId, contract.id);
+    resetEventForm();
   }, [tenantId, contract]);
 
   if (loading || pageLoading) {
@@ -336,6 +405,12 @@ export default function ContractDetailPage({ params }: PageProps) {
       date.getDate()
     )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
   };
+
+  const parseTags = (value: string) =>
+    value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
 
   const hasNotificationSent = (params: {
     installment: InstallmentRecord;
@@ -408,6 +483,13 @@ export default function ContractDetailPage({ params }: PageProps) {
           } => item !== null
         )
     : [];
+
+  const installmentLabelById = new Map(
+    installments.map((installment) => [
+      installment.id,
+      `Periodo ${installment.period}`,
+    ])
+  );
 
   return (
     <section className="space-y-6">
@@ -1352,7 +1434,263 @@ export default function ContractDetailPage({ params }: PageProps) {
           </div>
         )}
         {tab === "bitacora" && (
-          <div className="text-sm text-zinc-600">Bitacora: placeholder.</div>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-zinc-900">
+                  Nuevo evento
+                </div>
+              </div>
+              {eventError && (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {eventError}
+                </div>
+              )}
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Tipo
+                  </label>
+                  <select
+                    value={eventType}
+                    onChange={(event) =>
+                      setEventType(event.target.value as ContractEventType)
+                    }
+                    className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  >
+                    {eventTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Fecha y hora
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={eventAt}
+                    onChange={(event) => setEventAt(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Detalle
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={eventDetail}
+                    onChange={(event) => setEventDetail(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                    placeholder="Descripcion del evento"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Tags (separados por coma)
+                  </label>
+                  <input
+                    type="text"
+                    value={eventTags}
+                    onChange={(event) => setEventTags(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                    placeholder="Ej: llamado, atraso"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Asociar a cuota (opcional)
+                  </label>
+                  <select
+                    value={eventInstallmentId}
+                    onChange={(event) =>
+                      setEventInstallmentId(event.target.value)
+                    }
+                    className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  >
+                    <option value="">Sin asociar</option>
+                    {installments.map((installment) => (
+                      <option key={installment.id} value={installment.id}>
+                        {installment.period}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-zinc-700">
+                    Adjuntos (opcional)
+                  </label>
+                  <input
+                    key={eventAttachmentsKey}
+                    type="file"
+                    multiple
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={(event) =>
+                      setEventAttachments(Array.from(event.target.files ?? []))
+                    }
+                    className="mt-2 w-full text-sm text-zinc-900 file:mr-3 file:rounded-md file:border file:border-zinc-200 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-700 hover:file:bg-zinc-100"
+                  />
+                  {eventAttachments.length > 0 && (
+                    <div className="mt-1 text-[11px] text-zinc-500">
+                      {eventAttachments.length} adjunto(s) seleccionado(s)
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={eventSubmitting}
+                  onClick={async () => {
+                    if (!tenantId || !contract) return;
+                    if (!user?.uid) {
+                      setEventError("No se pudo obtener el usuario.");
+                      return;
+                    }
+                    const detailValue = eventDetail.trim();
+                    if (!detailValue) {
+                      setEventError("El detalle es obligatorio.");
+                      return;
+                    }
+                    if (!eventType) {
+                      setEventError("El tipo es obligatorio.");
+                      return;
+                    }
+                    const atDate = eventAt ? new Date(eventAt) : new Date();
+                    if (!Number.isFinite(atDate.getTime())) {
+                      setEventError("La fecha es invalida.");
+                      return;
+                    }
+                    setEventSubmitting(true);
+                    setEventError(null);
+                    try {
+                      const tags = parseTags(eventTags);
+                      const eventId = await addContractEvent(
+                        tenantId,
+                        contract.id,
+                        {
+                          type: eventType,
+                          at: atDate,
+                          detail: detailValue,
+                          tags: tags.length > 0 ? tags : undefined,
+                          installmentId: eventInstallmentId || undefined,
+                          createdBy: user.uid,
+                        }
+                      );
+                      if (eventAttachments.length > 0) {
+                        const uploaded = await Promise.all(
+                          eventAttachments.map((file) =>
+                            uploadEventAttachment(
+                              tenantId,
+                              contract.id,
+                              eventId,
+                              file
+                            )
+                          )
+                        );
+                        await updateContractEventAttachments(
+                          tenantId,
+                          contract.id,
+                          eventId,
+                          uploaded
+                        );
+                      }
+                      await loadContractEvents(tenantId, contract.id);
+                      resetEventForm();
+                    } catch (err: any) {
+                      setEventError(
+                        err?.message ?? "No se pudo guardar el evento."
+                      );
+                    } finally {
+                      setEventSubmitting(false);
+                    }
+                  }}
+                  className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                >
+                  {eventSubmitting ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm font-semibold text-zinc-900">
+                Eventos
+              </div>
+              {contractEventsError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {contractEventsError}
+                </div>
+              )}
+              {contractEventsLoading ? (
+                <div className="text-sm text-zinc-600">Cargando eventos...</div>
+              ) : contractEvents.length === 0 ? (
+                <div className="text-sm text-zinc-600">
+                  Sin eventos registrados.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {contractEvents.map((eventItem) => {
+                    const installmentLabel = eventItem.installmentId
+                      ? installmentLabelById.get(eventItem.installmentId) ||
+                        eventItem.installmentId
+                      : null;
+                    return (
+                      <div
+                        key={eventItem.id}
+                        className="rounded-lg border border-zinc-200 bg-white p-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600">
+                            {eventItem.type}
+                          </span>
+                          <span>{formatEventAt(eventItem.at)}</span>
+                        </div>
+                        <div className="mt-2 text-sm text-zinc-900">
+                          {eventItem.detail}
+                        </div>
+                        {(eventItem.tags && eventItem.tags.length > 0) ||
+                        installmentLabel ? (
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-600">
+                            {installmentLabel && (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-700">
+                                {installmentLabel}
+                              </span>
+                            )}
+                            {eventItem.tags?.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-full bg-zinc-100 px-2 py-0.5 font-semibold text-zinc-600"
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {eventItem.attachments &&
+                          eventItem.attachments.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                              {eventItem.attachments.map((attachment) => (
+                                <Link
+                                  key={attachment.path}
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="rounded-full border border-zinc-200 px-2 py-1 text-zinc-600 hover:text-zinc-900"
+                                >
+                                  {attachment.name}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
         {tab === "zip" && (
           <div className="text-sm text-zinc-600">Export ZIP: placeholder.</div>

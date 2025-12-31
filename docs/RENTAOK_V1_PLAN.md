@@ -92,6 +92,13 @@ QA Manual (Checklist) - Commit 3.3
 - Registrar pago "Sin comprobante" -> receipt no existe, flag true
 - Totals/status se actualizan como antes
 
+### QA Manual (Checklist) - Bitacora v1
+
+- Crear evento RECLAMO con tags y fecha -> aparece en lista
+- Subir 1-2 adjuntos -> links funcionan, archivos existen en Storage
+- Asociar a una cuota (si implementado) -> se guarda installmentId
+- Verificar createdBy = uid
+
 Etapa 4 - Notificaciones v1 (solo inquilino)
 - Commits chicos:
   - feat: tenant-only notification config and overrides
