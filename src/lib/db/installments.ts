@@ -40,6 +40,14 @@ export type InstallmentPaymentFlags = {
   hasUnverifiedPayments?: boolean;
 };
 
+export type PaymentMethod = "EFECTIVO" | "TRANSFERENCIA" | "TARJETA" | "OTRO";
+
+export type PaymentReceipt = {
+  name: string;
+  path: string;
+  url: string;
+};
+
 export type Installment = {
   contractId: string;
   period: string;
@@ -75,7 +83,11 @@ export type InstallmentItemRecord = InstallmentItem & { id: string };
 
 export type InstallmentPayment = {
   amount: number;
+  paidAt: Timestamp;
+  method: PaymentMethod;
+  collectedBy: string;
   withoutReceipt: boolean;
+  receipt?: PaymentReceipt;
   note?: string;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -355,10 +367,26 @@ export async function addLateFeeItem(
 export async function registerInstallmentPayment(
   tenantId: string,
   installmentId: string,
-  input: { amount: number; withoutReceipt: boolean; note?: string }
+  input: {
+    amount: number;
+    withoutReceipt: boolean;
+    paidAt?: Date | string;
+    method: PaymentMethod;
+    note?: string;
+    receipt?: PaymentReceipt;
+    collectedBy: string;
+  }
 ) {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
     throw new Error("El monto del pago debe ser mayor a 0.");
+  }
+
+  if (!input.method) {
+    throw new Error("El medio de pago es obligatorio.");
+  }
+
+  if (!input.collectedBy) {
+    throw new Error("El cobrador es obligatorio.");
   }
 
   const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
@@ -366,6 +394,15 @@ export async function registerInstallmentPayment(
     collection(db, "tenants", tenantId, "installments", installmentId, "payments")
   );
   const noteValue = input.note?.trim();
+  const paidAtValue =
+    input.paidAt instanceof Date
+      ? input.paidAt
+      : input.paidAt
+        ? new Date(input.paidAt)
+        : new Date();
+  if (!Number.isFinite(paidAtValue.getTime())) {
+    throw new Error("La fecha de pago es invalida.");
+  }
 
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(installmentRef);
@@ -400,7 +437,11 @@ export async function registerInstallmentPayment(
     transaction.update(installmentRef, updatePayload);
     transaction.set(paymentRef, {
       amount: input.amount,
+      paidAt: Timestamp.fromDate(paidAtValue),
+      method: input.method,
+      collectedBy: input.collectedBy,
       withoutReceipt: input.withoutReceipt,
+      ...(!input.withoutReceipt && input.receipt ? { receipt: input.receipt } : {}),
       ...(noteValue ? { note: noteValue } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -411,6 +452,7 @@ export async function registerInstallmentPayment(
 export async function markInstallmentPaidWithoutReceipt(
   tenantId: string,
   installmentId: string,
+  collectedBy: string,
   note?: string
 ) {
   const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
@@ -444,6 +486,9 @@ export async function markInstallmentPaidWithoutReceipt(
     if (missing > 0) {
       transaction.set(paymentRef, {
         amount: missing,
+        paidAt: Timestamp.fromDate(new Date()),
+        method: "OTRO",
+        collectedBy,
         withoutReceipt: true,
         note: noteValue,
         createdAt: serverTimestamp(),

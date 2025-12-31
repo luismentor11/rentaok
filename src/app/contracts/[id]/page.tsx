@@ -27,7 +27,9 @@ import {
   InstallmentItemRecord,
   InstallmentItemType,
   InstallmentRecord,
+  PaymentMethod,
 } from "@/lib/db/installments";
+import { uploadPaymentReceipt } from "@/lib/storage/payments";
 
 const tabOptions = [
   { key: "cuotas", label: "Cuotas" },
@@ -88,7 +90,10 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [paymentInstallment, setPaymentInstallment] =
     useState<InstallmentRecord | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentPaidAt, setPaymentPaidAt] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("EFECTIVO");
   const [paymentWithoutReceipt, setPaymentWithoutReceipt] = useState(false);
+  const [paymentReceiptFile, setPaymentReceiptFile] = useState<File | null>(null);
   const [paymentNote, setPaymentNote] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -214,7 +219,10 @@ export default function ContractDetailPage({ params }: PageProps) {
   const openPaymentModal = (installment: InstallmentRecord) => {
     setPaymentInstallment(installment);
     setPaymentAmount("");
+    setPaymentPaidAt(toDateTimeInputValue(new Date()));
+    setPaymentMethod("EFECTIVO");
     setPaymentWithoutReceipt(false);
+    setPaymentReceiptFile(null);
     setPaymentNote("");
     setPaymentError(null);
     setPaymentModalOpen(true);
@@ -321,6 +329,13 @@ export default function ContractDetailPage({ params }: PageProps) {
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
       date.getDate()
     ).padStart(2, "0")}`;
+
+  const toDateTimeInputValue = (date: Date) => {
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+      date.getDate()
+    )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
 
   const hasNotificationSent = (params: {
     installment: InstallmentRecord;
@@ -662,6 +677,12 @@ export default function ContractDetailPage({ params }: PageProps) {
                           disabled={installmentActions[installment.id]?.markPaid}
                           onClick={async () => {
                             if (!tenantId) return;
+                            if (!user?.uid) {
+                              setInstallmentsError(
+                                "No se pudo obtener el usuario."
+                              );
+                              return;
+                            }
                             const ok = window.confirm(
                               "Esto marca la cuota como PAGADA sin comprobante. ¿Continuar?"
                             );
@@ -677,7 +698,8 @@ export default function ContractDetailPage({ params }: PageProps) {
                             try {
                               await markInstallmentPaidWithoutReceipt(
                                 tenantId,
-                                installment.id
+                                installment.id,
+                                user.uid
                               );
                               await loadInstallments(
                                 tenantId,
@@ -1378,22 +1400,75 @@ export default function ContractDetailPage({ params }: PageProps) {
                   placeholder="1000"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Fecha y hora
+                </label>
+                <input
+                  type="datetime-local"
+                  value={paymentPaidAt}
+                  onChange={(event) => setPaymentPaidAt(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Medio de pago
+                </label>
+                <select
+                  value={paymentMethod}
+                  onChange={(event) =>
+                    setPaymentMethod(event.target.value as PaymentMethod)
+                  }
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                >
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                  <option value="TARJETA">Tarjeta</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
               <label className="flex items-center gap-2 text-sm text-zinc-700">
                 <input
                   type="checkbox"
                   checked={paymentWithoutReceipt}
                   onChange={(event) =>
-                    setPaymentWithoutReceipt(event.target.checked)
+                    setPaymentWithoutReceipt(() => {
+                      const next = event.target.checked;
+                      if (next) {
+                        setPaymentReceiptFile(null);
+                      }
+                      return next;
+                    })
                   }
                 />
                 Sin comprobante
               </label>
               <div>
                 <label className="block text-sm font-medium text-zinc-700">
-                  Nota (opcional)
+                  Comprobante (opcional)
                 </label>
                 <input
-                  type="text"
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  disabled={paymentWithoutReceipt}
+                  onChange={(event) =>
+                    setPaymentReceiptFile(event.target.files?.[0] ?? null)
+                  }
+                  className="mt-2 w-full text-sm text-zinc-900 file:mr-3 file:rounded-md file:border file:border-zinc-200 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-700 hover:file:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+                />
+                {paymentWithoutReceipt && (
+                  <div className="mt-1 text-[11px] text-zinc-500">
+                    Se omite el comprobante.
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Nota (opcional)
+                </label>
+                <textarea
+                  rows={2}
                   value={paymentNote}
                   onChange={(event) => setPaymentNote(event.target.value)}
                   className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
@@ -1415,21 +1490,48 @@ export default function ContractDetailPage({ params }: PageProps) {
                 disabled={paymentSubmitting}
                 onClick={async () => {
                   if (!tenantId || !paymentInstallment) return;
+                  if (!user?.uid) {
+                    setPaymentError("No se pudo obtener el usuario.");
+                    return;
+                  }
                   const amountValue = Number(paymentAmount);
                   if (!Number.isFinite(amountValue) || amountValue <= 0) {
                     setPaymentError("El monto debe ser mayor a 0.");
                     return;
                   }
+                  if (!paymentMethod) {
+                    setPaymentError("Selecciona el medio de pago.");
+                    return;
+                  }
+                  const paidAtDate = paymentPaidAt
+                    ? new Date(paymentPaidAt)
+                    : new Date();
+                  if (!Number.isFinite(paidAtDate.getTime())) {
+                    setPaymentError("La fecha de pago es invalida.");
+                    return;
+                  }
                   setPaymentSubmitting(true);
                   setPaymentError(null);
                   try {
+                    let receipt;
+                    if (!paymentWithoutReceipt && paymentReceiptFile) {
+                      receipt = await uploadPaymentReceipt(
+                        tenantId,
+                        paymentInstallment.id,
+                        paymentReceiptFile
+                      );
+                    }
                     await registerInstallmentPayment(
                       tenantId,
                       paymentInstallment.id,
                       {
                         amount: amountValue,
                         withoutReceipt: paymentWithoutReceipt,
+                        method: paymentMethod,
+                        paidAt: paidAtDate,
                         note: paymentNote || undefined,
+                        receipt,
+                        collectedBy: user.uid,
                       }
                     );
                     await loadInstallments(tenantId, paymentInstallment.contractId);

@@ -84,6 +84,14 @@ QA Manual (Checklist) - Commit 3.3
   - Ver totals.total aumenta y due aumenta si no esta pagada
   - Ver item creado en /items con label "Mora"
 
+### QA Manual (Checklist) - Pagos v1
+
+- Registrar pago con EFECTIVO + fecha default -> payment doc incluye method/paidAt/collectedBy
+- Registrar pago con TRANSFERENCIA + nota -> nota presente
+- Registrar pago con comprobante (archivo) -> receipt guardado con url/path y archivo existe en Storage
+- Registrar pago "Sin comprobante" -> receipt no existe, flag true
+- Totals/status se actualizan como antes
+
 Etapa 4 - Notificaciones v1 (solo inquilino)
 - Commits chicos:
   - feat: tenant-only notification config and overrides
