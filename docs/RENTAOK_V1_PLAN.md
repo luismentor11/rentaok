@@ -119,6 +119,15 @@ QA Manual (Checklist) - Etapa 5.1
 - Verificar que el mensaje a garante NO contiene importes
 - Verificar que botones abren wa.me/mailto para cada garante
 
+QA Manual (Checklist) - Etapa 5.2
+- En "Para enviar hoy", click WhatsApp (tenant):
+  - se crea notificationLog entry
+  - boton queda "Ya enviado hoy"
+  - refrescar pagina: sigue "Ya enviado"
+- Repetir para email (otro canal): debe permitir porque channel distinto
+- Garantes: click WhatsApp en garante 1 => solo ese queda "Ya enviado"; garante 2 sigue habilitado.
+- Confirmar que el log NO contiene montos ni texto.
+
 Etapa 5 - Export ZIP obligatorio
 - Commits chicos:
   - feat: export ZIP with contract + installments

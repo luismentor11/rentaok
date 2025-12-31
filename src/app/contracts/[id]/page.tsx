@@ -13,6 +13,7 @@ import {
   getNotificationDueToday,
   getGuarantorEscalationDueToday,
   buildGuarantorNotificationMessage,
+  logNotificationSent,
 } from "@/lib/db/notifications";
 import {
   generateInstallmentsForContract,
@@ -115,6 +116,9 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [contractNotificationSaving, setContractNotificationSaving] =
     useState(false);
   const [contractNotificationError, setContractNotificationError] = useState<
+    string | null
+  >(null);
+  const [notificationSendError, setNotificationSendError] = useState<
     string | null
   >(null);
 
@@ -313,7 +317,33 @@ export default function ContractDetailPage({ params }: PageProps) {
     }
   };
 
+  const formatDayKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+      date.getDate()
+    ).padStart(2, "0")}`;
+
+  const hasNotificationSent = (params: {
+    installment: InstallmentRecord;
+    type: "PRE_DUE_5" | "POST_DUE_1" | "GUARANTOR_DUE_5";
+    channel: "whatsapp" | "email";
+    audience: "TENANT" | "GUARANTOR";
+    recipient: string;
+    dayKey: string;
+  }) => {
+    const logEntries = (params.installment as any)?.notificationLog;
+    if (!Array.isArray(logEntries)) return false;
+    return logEntries.some(
+      (item: any) =>
+        item?.dayKey === params.dayKey &&
+        item?.type === params.type &&
+        item?.channel === params.channel &&
+        item?.audience === params.audience &&
+        item?.recipient === params.recipient
+    );
+  };
+
   const todayDate = new Date();
+  const todayDayKey = formatDayKey(todayDate);
   const notificationsDueToday = contractNotificationsEnabled
     ? installments
         .map((installment) => {
@@ -848,6 +878,11 @@ export default function ContractDetailPage({ params }: PageProps) {
                 {contractNotificationError}
               </div>
             )}
+            {notificationSendError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {notificationSendError}
+              </div>
+            )}
             <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
               <div className="text-xs font-semibold text-zinc-500">
                 Destinatarios detectados
@@ -889,6 +924,26 @@ export default function ContractDetailPage({ params }: PageProps) {
                           message.whatsappText
                         )}`
                       : "";
+                    const tenantEmailSent = tenantEmail
+                      ? hasNotificationSent({
+                          installment,
+                          type: dueType,
+                          channel: "email",
+                          audience: "TENANT",
+                          recipient: tenantEmail,
+                          dayKey: todayDayKey,
+                        })
+                      : false;
+                    const tenantWhatsappSent = whatsappNumber
+                      ? hasNotificationSent({
+                          installment,
+                          type: dueType,
+                          channel: "whatsapp",
+                          audience: "TENANT",
+                          recipient: whatsappNumber,
+                          dayKey: todayDayKey,
+                        })
+                      : false;
 
                     return (
                       <div
@@ -933,40 +988,112 @@ export default function ContractDetailPage({ params }: PageProps) {
                           </div>
                         </details>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {whatsappNumber ? (
-                            <a
-                              href={whatsappHref}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
-                            >
-                              WhatsApp
-                            </a>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                            >
-                              WhatsApp (sin numero)
-                            </button>
-                          )}
-                          {tenantEmail ? (
-                            <a
-                              href={emailHref}
-                              className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
-                            >
-                              Email
-                            </a>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled
-                              className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                            >
-                              Email (sin email)
-                            </button>
-                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {whatsappNumber ? (
+                              <button
+                                type="button"
+                                disabled={tenantWhatsappSent}
+                                onClick={async () => {
+                                  if (!tenantId) return;
+                                  if (tenantWhatsappSent) return;
+                                  setNotificationSendError(null);
+                                  try {
+                                    await logNotificationSent(
+                                      tenantId,
+                                      installment.id,
+                                      {
+                                        type: dueType,
+                                        channel: "whatsapp",
+                                        audience: "TENANT",
+                                        recipient: whatsappNumber,
+                                      }
+                                    );
+                                    window.open(
+                                      whatsappHref,
+                                      "_blank",
+                                      "noopener,noreferrer"
+                                    );
+                                    await loadInstallments(
+                                      tenantId,
+                                      installment.contractId
+                                    );
+                                  } catch (err: any) {
+                                    setNotificationSendError(
+                                      err?.message ??
+                                        "No se pudo registrar el envio."
+                                    );
+                                  }
+                                }}
+                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
+                              >
+                                WhatsApp
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
+                              >
+                                WhatsApp (sin numero)
+                              </button>
+                            )}
+                            {tenantWhatsappSent && (
+                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
+                                Ya enviado hoy
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {tenantEmail ? (
+                              <button
+                                type="button"
+                                disabled={tenantEmailSent}
+                                onClick={async () => {
+                                  if (!tenantId) return;
+                                  if (tenantEmailSent) return;
+                                  setNotificationSendError(null);
+                                  try {
+                                    await logNotificationSent(
+                                      tenantId,
+                                      installment.id,
+                                      {
+                                        type: dueType,
+                                        channel: "email",
+                                        audience: "TENANT",
+                                        recipient: tenantEmail,
+                                      }
+                                    );
+                                    window.open(emailHref, "_blank");
+                                    await loadInstallments(
+                                      tenantId,
+                                      installment.contractId
+                                    );
+                                  } catch (err: any) {
+                                    setNotificationSendError(
+                                      err?.message ??
+                                        "No se pudo registrar el envio."
+                                    );
+                                  }
+                                }}
+                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
+                              >
+                                Email
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
+                              >
+                                Email (sin email)
+                              </button>
+                            )}
+                            {tenantEmailSent && (
+                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
+                                Ya enviado hoy
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1050,6 +1177,26 @@ export default function ContractDetailPage({ params }: PageProps) {
                                   message.whatsappText
                                 )}`
                               : "";
+                            const guarantorEmailSent = guarantorEmail
+                              ? hasNotificationSent({
+                                  installment,
+                                  type: "GUARANTOR_DUE_5",
+                                  channel: "email",
+                                  audience: "GUARANTOR",
+                                  recipient: guarantorEmail,
+                                  dayKey: todayDayKey,
+                                })
+                              : false;
+                            const guarantorWhatsappSent = whatsappNumber
+                              ? hasNotificationSent({
+                                  installment,
+                                  type: "GUARANTOR_DUE_5",
+                                  channel: "whatsapp",
+                                  audience: "GUARANTOR",
+                                  recipient: whatsappNumber,
+                                  dayKey: todayDayKey,
+                                })
+                              : false;
 
                             return (
                               <div
@@ -1060,40 +1207,112 @@ export default function ContractDetailPage({ params }: PageProps) {
                                   {guarantor.fullName}
                                 </div>
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                  {whatsappNumber ? (
-                                    <a
-                                      href={whatsappHref}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
-                                    >
-                                      WhatsApp
-                                    </a>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled
-                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                                    >
-                                      WhatsApp (sin numero)
-                                    </button>
-                                  )}
-                                  {guarantorEmail ? (
-                                    <a
-                                      href={emailHref}
-                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
-                                    >
-                                      Email
-                                    </a>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      disabled
-                                      className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                                    >
-                                      Email (sin email)
-                                    </button>
-                                  )}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {whatsappNumber ? (
+                                      <button
+                                        type="button"
+                                        disabled={guarantorWhatsappSent}
+                                        onClick={async () => {
+                                          if (!tenantId) return;
+                                          if (guarantorWhatsappSent) return;
+                                          setNotificationSendError(null);
+                                          try {
+                                            await logNotificationSent(
+                                              tenantId,
+                                              installment.id,
+                                              {
+                                                type: "GUARANTOR_DUE_5",
+                                                channel: "whatsapp",
+                                                audience: "GUARANTOR",
+                                                recipient: whatsappNumber,
+                                              }
+                                            );
+                                            window.open(
+                                              whatsappHref,
+                                              "_blank",
+                                              "noopener,noreferrer"
+                                            );
+                                            await loadInstallments(
+                                              tenantId,
+                                              installment.contractId
+                                            );
+                                          } catch (err: any) {
+                                            setNotificationSendError(
+                                              err?.message ??
+                                                "No se pudo registrar el envio."
+                                            );
+                                          }
+                                        }}
+                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
+                                      >
+                                        WhatsApp
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
+                                      >
+                                        WhatsApp (sin numero)
+                                      </button>
+                                    )}
+                                    {guarantorWhatsappSent && (
+                                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
+                                        Ya enviado hoy
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {guarantorEmail ? (
+                                      <button
+                                        type="button"
+                                        disabled={guarantorEmailSent}
+                                        onClick={async () => {
+                                          if (!tenantId) return;
+                                          if (guarantorEmailSent) return;
+                                          setNotificationSendError(null);
+                                          try {
+                                            await logNotificationSent(
+                                              tenantId,
+                                              installment.id,
+                                              {
+                                                type: "GUARANTOR_DUE_5",
+                                                channel: "email",
+                                                audience: "GUARANTOR",
+                                                recipient: guarantorEmail,
+                                              }
+                                            );
+                                            window.open(emailHref, "_blank");
+                                            await loadInstallments(
+                                              tenantId,
+                                              installment.contractId
+                                            );
+                                          } catch (err: any) {
+                                            setNotificationSendError(
+                                              err?.message ??
+                                                "No se pudo registrar el envio."
+                                            );
+                                          }
+                                        }}
+                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
+                                      >
+                                        Email
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        disabled
+                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
+                                      >
+                                        Email (sin email)
+                                      </button>
+                                    )}
+                                    {guarantorEmailSent && (
+                                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
+                                        Ya enviado hoy
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             );

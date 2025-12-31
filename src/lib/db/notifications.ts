@@ -4,7 +4,9 @@ import {
   deleteField,
   doc,
   getDoc,
+  runTransaction,
   serverTimestamp,
+  arrayUnion,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -12,6 +14,18 @@ import type { Installment } from "@/lib/db/installments";
 import type { Contract } from "@/lib/model/v1";
 
 export type NotificationDueType = "PRE_DUE_5" | "POST_DUE_1";
+export type GuarantorNotificationType = "GUARANTOR_DUE_5";
+export type NotificationChannel = "whatsapp" | "email";
+export type NotificationAudience = "TENANT" | "GUARANTOR";
+
+export type NotificationLogEntry = {
+  at: unknown;
+  dayKey: string;
+  type: NotificationDueType | GuarantorNotificationType;
+  channel: NotificationChannel;
+  audience: NotificationAudience;
+  recipient: string;
+};
 
 const resolveTenantRecipients = (contract: Contract) => {
   const email = contract.parties.tenant.email?.trim();
@@ -35,6 +49,11 @@ const formatDateDdMmYyyy = (date: Date) =>
   `${String(date.getDate()).padStart(2, "0")}/${String(
     date.getMonth() + 1
   ).padStart(2, "0")}/${date.getFullYear()}`;
+
+const formatDayKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 
 export function getNotificationDueToday(
   installment: Installment,
@@ -156,6 +175,58 @@ export async function updateContractNotificationConfig(
       ...recipients,
     },
     updatedAt: serverTimestamp(),
+  });
+}
+
+export async function logNotificationSent(
+  tenantId: string,
+  installmentId: string,
+  entry: {
+    type: NotificationDueType | GuarantorNotificationType;
+    channel: NotificationChannel;
+    audience: NotificationAudience;
+    recipient: string;
+  }
+) {
+  const installmentRef = doc(
+    db,
+    "tenants",
+    tenantId,
+    "installments",
+    installmentId
+  );
+  const dayKey = formatDayKey(new Date());
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(installmentRef);
+    if (!snap.exists()) {
+      throw new Error("La cuota no existe.");
+    }
+
+    const data = snap.data() as { notificationLog?: NotificationLogEntry[] };
+    const logEntries = Array.isArray(data.notificationLog)
+      ? data.notificationLog
+      : [];
+    const alreadySent = logEntries.some(
+      (item) =>
+        item?.dayKey === dayKey &&
+        item?.type === entry.type &&
+        item?.channel === entry.channel &&
+        item?.audience === entry.audience &&
+        item?.recipient === entry.recipient
+    );
+    if (alreadySent) {
+      return;
+    }
+
+    transaction.update(installmentRef, {
+      notificationLog: arrayUnion({
+        ...entry,
+        dayKey,
+        at: serverTimestamp(),
+      }),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
