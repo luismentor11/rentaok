@@ -28,6 +28,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [auth, setAuth] = useState<Auth | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,11 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const clientAuth = getAuthClient();
       if (mounted) {
         setAuth(clientAuth);
+        setAuthChecked(true);
       }
     } catch (err: any) {
       if (mounted) {
         setError(err?.message ?? "Auth no disponible.");
         setLoading(false);
+        setAuthChecked(true);
       }
     }
     return () => {
@@ -50,7 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!auth) return;
+    if (!authChecked) return;
+    if (!auth) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     const unsub = onAuthStateChanged(
       auth,
       (u) => {
