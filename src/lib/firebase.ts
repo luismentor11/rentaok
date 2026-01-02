@@ -34,42 +34,24 @@ const getFirebaseConfig = (): FirebaseWebAppConfig => {
     return envConfig;
   }
 
-  const rawConfig = process.env.FIREBASE_WEBAPP_CONFIG;
-  if (rawConfig) {
-    try {
-      const parsed = JSON.parse(rawConfig) as FirebaseWebAppConfig;
-      const mappedConfig = {
-        apiKey: parsed.apiKey,
-        authDomain: parsed.authDomain,
-        projectId: parsed.projectId,
-        storageBucket: parsed.storageBucket,
-        messagingSenderId: parsed.messagingSenderId,
-        appId: parsed.appId,
-        measurementId: parsed.measurementId,
-      };
-
-      if (
-        mappedConfig.apiKey &&
-        mappedConfig.authDomain &&
-        mappedConfig.projectId &&
-        mappedConfig.appId
-      ) {
-        return mappedConfig;
-      }
-    } catch {
-      throw new Error(
-        "Failed to parse FIREBASE_WEBAPP_CONFIG. Provide valid JSON or set NEXT_PUBLIC_FIREBASE_* env vars.",
-      );
-    }
-  }
-
-  throw new Error(
-    "Missing Firebase config. Set NEXT_PUBLIC_FIREBASE_* env vars or provide FIREBASE_WEBAPP_CONFIG.",
-  );
+  return {};
 };
 
 const firebaseConfig = getFirebaseConfig();
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+let app = getApps().length ? getApps()[0] : null;
+
+if (!app) {
+  try {
+    app =
+      firebaseConfig.apiKey && firebaseConfig.authDomain
+        ? initializeApp(firebaseConfig)
+        : initializeApp();
+  } catch (err: any) {
+    throw new Error(
+      `Failed to initialize Firebase app: ${err?.message ?? "Unknown error"}`,
+    );
+  }
+}
 
 export const auth: Auth | null =
   typeof window !== "undefined" ? getAuth(app) : null;
