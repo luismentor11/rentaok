@@ -500,14 +500,10 @@ export default function ContractDetailPage({ params }: PageProps) {
       <div className="space-y-1">
         <div className="text-sm text-zinc-500">Contrato {contract.id}</div>
         <h1 className="text-2xl font-semibold text-zinc-900">
-          {contract.propertyTitle ||
-            (contract as any)?.property?.title ||
-            "-"}
+          {(contract as any)?.property?.title || "-"}
         </h1>
         <p className="text-sm text-zinc-600">
-          {contract.propertyAddress ||
-            (contract as any)?.property?.address ||
-            "-"}
+          {(contract as any)?.property?.address || "-"}
         </p>
       </div>
 

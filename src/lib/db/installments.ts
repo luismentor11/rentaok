@@ -131,7 +131,7 @@ const recomputeInstallmentTotalsAndStatusTx = async (
   const itemsQuery = query(
     collection(db, "tenants", tenantId, "installments", installmentId, "items")
   );
-  const itemsSnap = await transaction.get(itemsQuery);
+  const itemsSnap = await getDocs(itemsQuery);
   const total = itemsSnap.docs.reduce((sum, itemSnap) => {
     const amount = Number((itemSnap.data() as InstallmentItem).amount ?? 0);
     return sum + (Number.isFinite(amount) ? amount : 0);

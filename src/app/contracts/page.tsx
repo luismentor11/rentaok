@@ -101,9 +101,7 @@ export default function ContractsPage() {
             >
               <div>
                 <div className="text-sm font-medium text-text">
-                  {contract.propertyTitle ||
-                    (contract as any)?.property?.title ||
-                    "-"}
+                  {(contract as any)?.property?.title || "-"}
                 </div>
                 <div className="text-xs text-text-muted">
                   Locatario: {contract.parties.tenant.fullName} | Propietario:{" "}
