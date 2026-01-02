@@ -10,7 +10,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getAuthClient } from "@/lib/firebase";
 
 type AuthContextValue = {
   user: User | null;
@@ -28,8 +28,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const auth = getAuthClient();
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      setError("Auth no disponible.");
+      return;
+    }
     const unsub = onAuthStateChanged(
       auth,
       (u) => {
@@ -46,22 +52,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = async () => {
+    if (!auth) {
+      setError("Auth no disponible.");
+      return;
+    }
     setError(null);
     await signOut(auth);
   };
 
   const loginWithGoogle = async () => {
+    if (!auth) {
+      setError("Auth no disponible.");
+      return;
+    }
     setError(null);
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
   };
 
   const loginWithEmail = async (email: string, password: string) => {
+    if (!auth) {
+      setError("Auth no disponible.");
+      return;
+    }
     setError(null);
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const registerWithEmail = async (email: string, password: string) => {
+    if (!auth) {
+      setError("Auth no disponible.");
+      return;
+    }
     setError(null);
     await createUserWithEmailAndPassword(auth, email, password);
   };

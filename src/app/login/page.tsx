@@ -6,7 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { getAuthClient } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
@@ -27,6 +27,10 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
+      const auth = getAuthClient();
+      if (!auth) {
+        throw new Error("Auth no disponible.");
+      }
       if (mode === "login") {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
