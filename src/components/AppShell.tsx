@@ -13,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="text-lg font-semibold text-text">RentaOK</div>
           <div className="mt-6 space-y-2 text-sm font-medium text-text-muted">
             <Link
-              href="/"
+              href="/dashboard"
               className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
@@ -25,13 +25,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
               Contratos
-            </Link>
-            <Link
-              href="/tenants"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
-            >
-              <span className="h-2 w-2 rounded-sm bg-muted" />
-              Inquilinos
             </Link>
             <Link
               href="/settings"
