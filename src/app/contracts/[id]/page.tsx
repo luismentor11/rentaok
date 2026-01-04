@@ -421,6 +421,20 @@ export default function ContractDetailPage({ params }: PageProps) {
     );
   }
 
+  if (!tenantId) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
+        <div>Necesitas crear un tenant para continuar.</div>
+        <Link
+          href="/onboarding"
+          className="mt-2 inline-flex text-xs font-medium text-zinc-700 hover:text-zinc-900"
+        >
+          Ir a onboarding
+        </Link>
+      </div>
+    );
+  }
+
   if (!contract) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

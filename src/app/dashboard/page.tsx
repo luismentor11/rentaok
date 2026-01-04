@@ -297,6 +297,20 @@ export default function OperationalDashboardPage() {
     );
   }
 
+  if (!tenantId) {
+    return (
+      <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text-muted">
+        <div>Necesitas crear un tenant para continuar.</div>
+        <Link
+          href="/onboarding"
+          className="mt-2 inline-flex text-xs font-medium text-text hover:text-text-muted"
+        >
+          Ir a onboarding
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <section className="space-y-6">
       <div className="rounded-xl border border-border bg-surface p-4">

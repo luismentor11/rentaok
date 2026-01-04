@@ -1,8 +1,82 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { getUserProfile } from "@/lib/db/users";
 
 export default function PaymentsPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/login");
+    }
+  }, [loading, user, router]);
+
+  useEffect(() => {
+    if (!user || loading) return;
+    let active = true;
+    const load = async () => {
+      setPageLoading(true);
+      setPageError(null);
+      try {
+        const profile = await getUserProfile(user.uid);
+        if (!active) return;
+        const nextTenantId = profile?.tenantId ?? null;
+        setTenantId(nextTenantId);
+        if (!nextTenantId) {
+          router.replace("/onboarding");
+        }
+      } catch (err: any) {
+        if (!active) return;
+        setPageError(err?.message ?? "No se pudo cargar pagos.");
+      } finally {
+        if (active) setPageLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, [user, loading, router]);
+
+  if (loading || pageLoading) {
+    return <div className="text-sm text-zinc-600">Cargando...</div>;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (pageError) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
+        No se pudo cargar pagos.
+      </div>
+    );
+  }
+
+  if (!tenantId) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
+        <div>Necesitas crear un tenant para continuar.</div>
+        <Link
+          href="/onboarding"
+          className="mt-2 inline-flex text-xs font-medium text-zinc-700 hover:text-zinc-900"
+        >
+          Ir a onboarding
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <section className="space-y-6">
       <div className="space-y-1">
