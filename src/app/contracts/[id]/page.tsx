@@ -391,13 +391,29 @@ export default function ContractDetailPage({ params }: PageProps) {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        {error}
+        <div>No se pudo cargar el contrato.</div>
+        <Link
+          href="/contracts"
+          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
+        >
+          Volver a contratos
+        </Link>
       </div>
     );
   }
 
   if (!contract) {
-    return null;
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div>Contrato no encontrado.</div>
+        <Link
+          href="/contracts"
+          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
+        >
+          Volver a contratos
+        </Link>
+      </div>
+    );
   }
 
   const tenantEmail = contract.parties.tenant.email?.trim();

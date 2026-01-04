@@ -12,6 +12,16 @@ export default function PaymentsPage() {
         </p>
       </div>
 
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
+        <div>Vista global (proximamente datos).</div>
+        <Link
+          href="/contracts"
+          className="mt-3 inline-flex rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+        >
+          Ir a contratos
+        </Link>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <div className="text-xs font-semibold text-zinc-500">Hoy</div>

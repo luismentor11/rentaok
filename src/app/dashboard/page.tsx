@@ -292,7 +292,7 @@ export default function OperationalDashboardPage() {
   if (error) {
     return (
       <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-        {error}
+        No se pudo cargar el panel.
       </div>
     );
   }
@@ -394,14 +394,19 @@ export default function OperationalDashboardPage() {
 
       {installmentsError && (
         <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {installmentsError}
+          No se pudieron cargar los vencimientos.
         </div>
       )}
 
       {installmentsLoading ? (
         <div className="text-sm text-text-muted">Cargando cuotas...</div>
       ) : filteredInstallments.length === 0 ? (
-        <div className="text-sm text-text-muted">Sin cuotas para mostrar.</div>
+        <div className="space-y-1">
+          <div className="text-sm text-text-muted">
+            No hay vencimientos para mostrar.
+          </div>
+          <div className="text-xs text-text-muted">Carga tu primer contrato.</div>
+        </div>
       ) : (
         <div className="space-y-3">
           {filteredInstallments.map((installment) => {
