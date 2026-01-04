@@ -12,6 +12,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { Installment } from "@/lib/db/installments";
 import type { Contract } from "@/lib/model/v1";
+import { toDateSafe } from "@/lib/utils/firestoreDate";
 
 export type NotificationDueType = "PRE_DUE_5" | "POST_DUE_1";
 export type GuarantorNotificationType = "GUARANTOR_DUE_5";
@@ -40,9 +41,7 @@ const toDateNumber = (date: Date) =>
   date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
 
 const getDueDateFromInstallment = (installment: Installment) => {
-  const maybeDate = (installment.dueDate as any)?.toDate?.();
-  if (maybeDate instanceof Date) return maybeDate;
-  return installment.dueDate instanceof Date ? installment.dueDate : null;
+  return toDateSafe(installment.dueDate);
 };
 
 const formatDateDdMmYyyy = (date: Date) =>

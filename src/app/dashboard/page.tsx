@@ -21,6 +21,7 @@ import {
   buildTenantNotificationMessage,
   getNotificationDueToday,
 } from "@/lib/db/notifications";
+import { toDateSafe } from "@/lib/utils/firestoreDate";
 
 const statusOptions: { value: InstallmentStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "Todos" },
@@ -159,12 +160,7 @@ export default function OperationalDashboardPage() {
   };
 
   const formatDueDate = (value: InstallmentRecord["dueDate"]) => {
-    const date =
-      typeof (value as any)?.toDate === "function"
-        ? (value as any).toDate()
-        : value instanceof Date
-          ? value
-          : null;
+    const date = toDateSafe(value);
     return date ? date.toLocaleDateString() : "-";
   };
 
@@ -201,22 +197,22 @@ export default function OperationalDashboardPage() {
 
     return [
       {
-        label: "Cuotas activas",
+        label: "Vencimientos activos",
         value: String(counts.total),
         tone: "bg-surface-alt text-text",
       },
       {
-        label: "Adeudado",
+        label: "Saldo pendiente",
         value: String(counts.due),
         tone: "bg-danger/15 text-danger",
       },
       {
-        label: "Pagado",
+        label: "Cobrado",
         value: String(counts.paid),
         tone: "bg-success/15 text-success",
       },
       {
-        label: "En acuerdo",
+        label: "En gestion",
         value: String(counts.EN_ACUERDO),
         tone: "bg-risk/15 text-risk",
       },
@@ -274,12 +270,38 @@ export default function OperationalDashboardPage() {
 
   return (
     <section className="space-y-6">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="text-xs font-semibold text-text-muted">
+          Acciones rapidas
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link
+            href="/contracts/new"
+            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text hover:bg-surface"
+          >
+            + Cargar contrato
+          </Link>
+          <button
+            type="button"
+            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text hover:bg-surface"
+          >
+            Registrar pago
+          </button>
+          <Link
+            href="/contracts"
+            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text hover:bg-surface"
+          >
+            Ver contratos
+          </Link>
+        </div>
+      </div>
+
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-text">Dashboard</h1>
+            <h1 className="text-2xl font-semibold text-text">Panel operativo</h1>
             <p className="text-sm text-text-muted">
-              Operaciones rapidas sobre cuotas.
+              Estado general de cobros y vencimientos.
             </p>
           </div>
           <Link

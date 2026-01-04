@@ -7,10 +7,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { listContracts, ContractRecord } from "@/lib/db/contracts";
 
+type ContractRecordWithProperty = ContractRecord & {
+  property?: {
+    title?: string;
+    address?: string;
+  };
+};
+
 export default function ContractsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [contracts, setContracts] = useState<ContractRecord[]>([]);
+  const [contracts, setContracts] = useState<ContractRecordWithProperty[]>([]);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -101,7 +108,7 @@ export default function ContractsPage() {
             >
               <div>
                 <div className="text-sm font-medium text-text">
-                  {(contract as any)?.property?.title || "-"}
+                  {contract.property?.title || "-"}
                 </div>
                 <div className="text-xs text-text-muted">
                   Locatario: {contract.parties.tenant.fullName} | Propietario:{" "}

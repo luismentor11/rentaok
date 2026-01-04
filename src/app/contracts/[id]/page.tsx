@@ -39,6 +39,7 @@ import {
   ContractEventType,
 } from "@/lib/db/events";
 import { exportContractZip } from "@/lib/export/exportContractZip";
+import { toDateSafe } from "@/lib/utils/firestoreDate";
 
 const tabOptions = [
   { key: "resumen", label: "Resumen" },
@@ -83,11 +84,27 @@ type PageProps = {
   params: { id: string };
 };
 
+type ContractRecordWithProperty = ContractRecord & {
+  property?: {
+    title?: string;
+    address?: string;
+  };
+};
+
+type NotificationLogEntry = {
+  type: string;
+  at: Date | string;
+  channel?: string;
+  message?: string;
+};
+
 export default function ContractDetailPage({ params }: PageProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [contract, setContract] = useState<ContractRecord | null>(null);
+  const [contract, setContract] = useState<ContractRecordWithProperty | null>(
+    null
+  );
   const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
   const [installmentsError, setInstallmentsError] = useState<string | null>(
@@ -206,22 +223,12 @@ export default function ContractDetailPage({ params }: PageProps) {
   }, [user, loading, router, params.id]);
 
   const formatDueDate = (value: InstallmentRecord["dueDate"]) => {
-    const date =
-      typeof (value as any)?.toDate === "function"
-        ? (value as any).toDate()
-        : value instanceof Date
-          ? value
-          : null;
+    const date = toDateSafe(value);
     return date ? date.toLocaleDateString() : "-";
   };
 
   const formatEventAt = (value: EventRecord["at"]) => {
-    const date =
-      typeof (value as any)?.toDate === "function"
-        ? (value as any).toDate()
-        : value instanceof Date
-          ? value
-          : null;
+    const date = toDateSafe(value);
     return date ? date.toLocaleString() : "-";
   };
 
@@ -425,7 +432,9 @@ export default function ContractDetailPage({ params }: PageProps) {
     recipient: string;
     dayKey: string;
   }) => {
-    const logEntries = (params.installment as any)?.notificationLog;
+    const logEntries = (params.installment as {
+      notificationLog?: NotificationLogEntry[];
+    }).notificationLog;
     if (!Array.isArray(logEntries)) return false;
     return logEntries.some(
       (item: any) =>
@@ -521,10 +530,10 @@ export default function ContractDetailPage({ params }: PageProps) {
             <div className="space-y-1">
               <div className="text-sm text-zinc-500">Contrato {contract.id}</div>
               <h1 className="text-2xl font-semibold text-zinc-900">
-                {(contract as any)?.property?.title || "-"}
+                {contract.property?.title || "-"}
               </h1>
               <p className="text-sm text-zinc-600">
-                {(contract as any)?.property?.address || "-"}
+                {contract.property?.address || "-"}
               </p>
             </div>
 
