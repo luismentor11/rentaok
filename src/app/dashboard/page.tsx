@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { listContracts, ContractRecord } from "@/lib/db/contracts";
@@ -22,6 +23,7 @@ import {
   getNotificationDueToday,
 } from "@/lib/db/notifications";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
+import { db } from "@/lib/firebase";
 
 const statusOptions: { value: InstallmentStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "Todos" },
@@ -80,6 +82,18 @@ export default function OperationalDashboardPage() {
   const [itemAmount, setItemAmount] = useState("");
   const [itemSubmitting, setItemSubmitting] = useState(false);
   const [itemError, setItemError] = useState<string | null>(null);
+
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageContractId, setMessageContractId] = useState<string | null>(null);
+  const [messageRecipient, setMessageRecipient] = useState<
+    "tenant" | "guarantors" | "both"
+  >("tenant");
+  const [messageChannel, setMessageChannel] = useState<
+    "whatsapp" | "email" | "copy"
+  >("whatsapp");
+  const [messageText, setMessageText] = useState("");
+  const [messageSubmitting, setMessageSubmitting] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   const statusBadgeColor: Record<InstallmentStatus, string> = {
     POR_VENCER: "bg-success/15 text-success",
@@ -250,6 +264,21 @@ export default function OperationalDashboardPage() {
     if (itemSubmitting) return;
     setItemModalOpen(false);
     setItemInstallment(null);
+  };
+
+  const openMessageModal = (contractId: string) => {
+    setMessageContractId(contractId);
+    setMessageRecipient("tenant");
+    setMessageChannel("whatsapp");
+    setMessageText("");
+    setMessageError(null);
+    setMessageModalOpen(true);
+  };
+
+  const closeMessageModal = () => {
+    if (messageSubmitting) return;
+    setMessageModalOpen(false);
+    setMessageContractId(null);
   };
 
   if (loading || pageLoading) {
@@ -522,6 +551,13 @@ export default function OperationalDashboardPage() {
                     className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-alt disabled:cursor-not-allowed disabled:text-text-muted"
                   >
                     Reenviar notificacion
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMessageModal(installment.contractId)}
+                    className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text hover:bg-surface-alt"
+                  >
+                    Enviar mensaje
                   </button>
                 </div>
               </div>
@@ -845,6 +881,138 @@ export default function OperationalDashboardPage() {
                 className="rounded-md bg-surface-alt px-3 py-1.5 text-sm font-medium text-text hover:bg-surface disabled:cursor-not-allowed disabled:bg-surface"
               >
                 {itemSubmitting ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {messageModalOpen && messageContractId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text">
+                Enviar mensaje
+              </h3>
+              <button
+                type="button"
+                onClick={closeMessageModal}
+                className="text-sm text-text-muted hover:text-text"
+              >
+                Cerrar
+              </button>
+            </div>
+            {messageError && (
+              <div className="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {messageError}
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-text">
+                  Destinatario
+                </label>
+                <select
+                  value={messageRecipient}
+                  onChange={(event) =>
+                    setMessageRecipient(
+                      event.target.value as "tenant" | "guarantors" | "both"
+                    )
+                  }
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:border-text focus:outline-none"
+                >
+                  <option value="tenant">Locatario</option>
+                  <option value="guarantors">Garantes</option>
+                  <option value="both">Ambos</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text">
+                  Canal
+                </label>
+                <select
+                  value={messageChannel}
+                  onChange={(event) =>
+                    setMessageChannel(
+                      event.target.value as "whatsapp" | "email" | "copy"
+                    )
+                  }
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:border-text focus:outline-none"
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                  <option value="copy">Copiar texto</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text">
+                  Texto libre
+                </label>
+                <textarea
+                  rows={3}
+                  value={messageText}
+                  onChange={(event) => setMessageText(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:border-text focus:outline-none"
+                  placeholder="Escribe el mensaje"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeMessageModal}
+                disabled={messageSubmitting}
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-alt disabled:cursor-not-allowed disabled:text-text-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={messageSubmitting}
+                onClick={async () => {
+                  if (!tenantId || !messageContractId) return;
+                  const textValue = messageText.trim();
+                  if (!textValue) {
+                    setMessageError("El mensaje es obligatorio.");
+                    return;
+                  }
+                  setMessageSubmitting(true);
+                  setMessageError(null);
+                  try {
+                    const recipients =
+                      messageRecipient === "both"
+                        ? ["tenant", "guarantors"]
+                        : [messageRecipient];
+                    await addDoc(
+                      collection(
+                        db,
+                        "tenants",
+                        tenantId,
+                        "contracts",
+                        messageContractId,
+                        "events"
+                      ),
+                      {
+                        type: "message",
+                        recipients,
+                        channel: messageChannel,
+                        messageSnippet: textValue.slice(0, 140),
+                        createdAt: serverTimestamp(),
+                      }
+                    );
+                    setMessageModalOpen(false);
+                    setMessageContractId(null);
+                  } catch (err: any) {
+                    setMessageError(
+                      err?.message ?? "No se pudo registrar el mensaje."
+                    );
+                  } finally {
+                    setMessageSubmitting(false);
+                  }
+                }}
+                className="rounded-md bg-surface-alt px-3 py-1.5 text-sm font-medium text-text hover:bg-surface disabled:cursor-not-allowed disabled:bg-surface"
+              >
+                {messageSubmitting ? "Guardando..." : "Registrar mensaje"}
               </button>
             </div>
           </div>

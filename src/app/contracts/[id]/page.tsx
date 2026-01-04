@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { getContract, ContractRecord } from "@/lib/db/contracts";
@@ -40,6 +41,7 @@ import {
 } from "@/lib/db/events";
 import { exportContractZip } from "@/lib/export/exportContractZip";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
+import { db } from "@/lib/firebase";
 
 const tabOptions = [
   { key: "resumen", label: "Resumen" },
@@ -179,6 +181,16 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [exportingZip, setExportingZip] = useState(false);
   const [exportZipError, setExportZipError] = useState<string | null>(null);
   const [exportZipSuccess, setExportZipSuccess] = useState<string | null>(null);
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageRecipient, setMessageRecipient] = useState<
+    "tenant" | "guarantors" | "both"
+  >("tenant");
+  const [messageChannel, setMessageChannel] = useState<
+    "whatsapp" | "email" | "copy"
+  >("whatsapp");
+  const [messageText, setMessageText] = useState("");
+  const [messageSubmitting, setMessageSubmitting] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -346,6 +358,19 @@ export default function ContractDetailPage({ params }: PageProps) {
     if (lateFeeSubmitting) return;
     setLateFeeModalOpen(false);
     setLateFeeInstallment(null);
+  };
+
+  const openMessageModal = () => {
+    setMessageRecipient("tenant");
+    setMessageChannel("whatsapp");
+    setMessageText("");
+    setMessageError(null);
+    setMessageModalOpen(true);
+  };
+
+  const closeMessageModal = () => {
+    if (messageSubmitting) return;
+    setMessageModalOpen(false);
   };
 
   useEffect(() => {
@@ -1454,6 +1479,13 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <div className="text-sm font-semibold text-zinc-900">
                   Nuevo evento
                 </div>
+                <button
+                  type="button"
+                  onClick={openMessageModal}
+                  className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                >
+                  Enviar mensaje
+                </button>
               </div>
               {eventError && (
                 <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -1750,6 +1782,137 @@ export default function ContractDetailPage({ params }: PageProps) {
 
       {tenantId && (
         <div className="text-xs text-zinc-400">Tenant: {tenantId}</div>
+      )}
+
+      {messageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">
+                Enviar mensaje
+              </h3>
+              <button
+                type="button"
+                onClick={closeMessageModal}
+                className="text-sm text-zinc-500 hover:text-zinc-700"
+              >
+                Cerrar
+              </button>
+            </div>
+            {messageError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {messageError}
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Destinatario
+                </label>
+                <select
+                  value={messageRecipient}
+                  onChange={(event) =>
+                    setMessageRecipient(
+                      event.target.value as "tenant" | "guarantors" | "both"
+                    )
+                  }
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                >
+                  <option value="tenant">Locatario</option>
+                  <option value="guarantors">Garantes</option>
+                  <option value="both">Ambos</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Canal
+                </label>
+                <select
+                  value={messageChannel}
+                  onChange={(event) =>
+                    setMessageChannel(
+                      event.target.value as "whatsapp" | "email" | "copy"
+                    )
+                  }
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                  <option value="copy">Copiar texto</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700">
+                  Texto libre
+                </label>
+                <textarea
+                  rows={3}
+                  value={messageText}
+                  onChange={(event) => setMessageText(event.target.value)}
+                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  placeholder="Escribe el mensaje"
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeMessageModal}
+                disabled={messageSubmitting}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={messageSubmitting}
+                onClick={async () => {
+                  if (!tenantId || !contract) return;
+                  const textValue = messageText.trim();
+                  if (!textValue) {
+                    setMessageError("El mensaje es obligatorio.");
+                    return;
+                  }
+                  setMessageSubmitting(true);
+                  setMessageError(null);
+                  try {
+                    const recipients =
+                      messageRecipient === "both"
+                        ? ["tenant", "guarantors"]
+                        : [messageRecipient];
+                    await addDoc(
+                      collection(
+                        db,
+                        "tenants",
+                        tenantId,
+                        "contracts",
+                        contract.id,
+                        "events"
+                      ),
+                      {
+                        type: "message",
+                        recipients,
+                        channel: messageChannel,
+                        messageSnippet: textValue.slice(0, 140),
+                        createdAt: serverTimestamp(),
+                      }
+                    );
+                    setMessageModalOpen(false);
+                  } catch (err: any) {
+                    setMessageError(
+                      err?.message ?? "No se pudo registrar el mensaje."
+                    );
+                  } finally {
+                    setMessageSubmitting(false);
+                  }
+                }}
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
+                {messageSubmitting ? "Guardando..." : "Registrar mensaje"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {paymentModalOpen && paymentInstallment && (
