@@ -31,6 +31,7 @@ import {
   PaymentMethod,
 } from "@/lib/db/installments";
 import { uploadPaymentReceipt } from "@/lib/storage/payments";
+import ServicesTab from "@/components/contracts/ServicesTab";
 import {
   addContractEvent,
   listContractEvents,
@@ -47,6 +48,7 @@ const tabOptions = [
   { key: "resumen", label: "Resumen" },
   { key: "partes", label: "Partes" },
   { key: "pagos", label: "Pagos" },
+  { key: "servicios", label: "Servicios" },
   { key: "documentos", label: "Documentos" },
   { key: "alertas", label: "Alertas" },
   { key: "actividad", label: "Actividad" },
@@ -104,6 +106,7 @@ export default function ContractDetailPage({ params }: PageProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [contract, setContract] = useState<ContractRecordWithProperty | null>(
     null
   );
@@ -208,6 +211,7 @@ export default function ContractDetailPage({ params }: PageProps) {
         const profile = await getUserProfile(user.uid);
         if (!active) return;
         const nextTenantId = profile?.tenantId ?? null;
+        setUserRole(profile?.role ?? null);
         setTenantId(nextTenantId);
         if (!nextTenantId) {
           router.replace("/onboarding");
@@ -1037,6 +1041,9 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
             )}
           </div>
+        )}
+        {tab === "servicios" && (
+          <ServicesTab contractId={contract.id} role={userRole ?? "owner"} />
         )}
         {tab === "alertas" && (
           <div className="space-y-4 text-sm text-zinc-600">
