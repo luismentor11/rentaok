@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 
 initializeApp();
 
@@ -80,6 +81,14 @@ function safeIdPart(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+function isAlreadyExistsError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const maybeCode = (error as { code?: unknown }).code;
+  if (maybeCode === 6) return true;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && message.includes("ALREADY_EXISTS");
+}
+
 export const generateMonthlyServices = onSchedule("every day 02:00", async () => {
   const now = new Date();
   const periodDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -88,7 +97,7 @@ export const generateMonthlyServices = onSchedule("every day 02:00", async () =>
   const contractsSnap = await db.collectionGroup("contracts").get();
   const writes: Promise<unknown>[] = [];
 
-  contractsSnap.forEach((docSnap) => {
+  contractsSnap.forEach((docSnap: QueryDocumentSnapshot) => {
     const data = docSnap.data() as ContractData;
     const pathParts = docSnap.ref.path.split("/");
     if (pathParts.length !== 4) return;
@@ -133,8 +142,8 @@ export const generateMonthlyServices = onSchedule("every day 02:00", async () =>
         updatedAt: Timestamp.now(),
       };
       writes.push(
-        serviceRef.create(payload).catch((err) => {
-          if (err?.code === 6 || err?.message?.includes("ALREADY_EXISTS")) {
+        serviceRef.create(payload).catch((err: unknown) => {
+          if (isAlreadyExistsError(err)) {
             return null;
           }
           throw err;
