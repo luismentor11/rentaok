@@ -1,5 +1,8 @@
 {
   "apphosting": {
     "backendId": "rentaok-app"
+  },
+  "firestore": {
+    "rules": "firestore.rules"
   }
 }
