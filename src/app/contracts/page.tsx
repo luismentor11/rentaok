@@ -63,7 +63,11 @@ export default function ContractsPage() {
   }, [user, loading, router, reloadToken]);
 
   if (loading || pageLoading) {
-    return <div className="text-sm text-text-muted">Cargando...</div>;
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+        Cargando...
+      </div>
+    );
   }
 
   if (!user) {
@@ -96,8 +100,8 @@ export default function ContractsPage() {
         </Link>
       </div>
       {pageError && (
-        <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          No se pudieron cargar los contratos.
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          Ocurrió un error. Intentá de nuevo.
         </div>
       )}
       {pageError && (
@@ -110,11 +114,11 @@ export default function ContractsPage() {
         </button>
       )}
       {contracts.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-surface p-6 text-sm text-text-muted">
-          <div>Todavia no tenes contratos.</div>
+        <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+          <div>No hay contratos para mostrar.</div>
           <Link
             href="/contracts/new"
-            className="mt-3 inline-flex rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text hover:bg-surface"
+            className="mt-2 inline-flex rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text hover:bg-surface"
           >
             Crear contrato
           </Link>

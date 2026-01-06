@@ -48,7 +48,11 @@ export default function PaymentsPage() {
   }, [user, loading, router]);
 
   if (loading || pageLoading) {
-    return <div className="text-sm text-zinc-600">Cargando...</div>;
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+        Cargando...
+      </div>
+    );
   }
 
   if (!user) {
@@ -57,8 +61,8 @@ export default function PaymentsPage() {
 
   if (pageError) {
     return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
-        No se pudo cargar pagos.
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        Ocurrió un error. Intentá de nuevo.
       </div>
     );
   }
@@ -86,11 +90,11 @@ export default function PaymentsPage() {
         </p>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-600">
-        <div>Vista global (proximamente datos).</div>
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+        <div>No hay pagos para mostrar.</div>
         <Link
           href="/contracts"
-          className="mt-3 inline-flex rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+          className="mt-2 inline-flex rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
         >
           Ir a contratos
         </Link>

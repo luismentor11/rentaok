@@ -404,7 +404,11 @@ export default function ContractDetailPage({ params }: PageProps) {
   }, [tenantId, contract]);
 
   if (loading || pageLoading) {
-    return <div className="text-sm text-zinc-600">Cargando...</div>;
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+        Cargando...
+      </div>
+    );
   }
 
   if (!user) {
@@ -414,7 +418,7 @@ export default function ContractDetailPage({ params }: PageProps) {
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        <div>No se pudo cargar el contrato.</div>
+        <div>Ocurrió un error. Intentá de nuevo.</div>
         <Link
           href="/contracts"
           className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
@@ -442,7 +446,7 @@ export default function ContractDetailPage({ params }: PageProps) {
   if (!contract) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        <div>Contrato no encontrado.</div>
+        <div>Ocurrió un error. Intentá de nuevo.</div>
         <Link
           href="/contracts"
           className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
@@ -735,14 +739,16 @@ export default function ContractDetailPage({ params }: PageProps) {
             </div>
             {installmentsError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {installmentsError}
+                Ocurrió un error. Intentá de nuevo.
               </div>
             )}
             {installmentsLoading ? (
-              <div className="text-sm text-zinc-600">Cargando cuotas...</div>
+              <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                Cargando...
+              </div>
             ) : installments.length === 0 ? (
-              <div className="text-sm text-zinc-600">
-                Sin cuotas generadas.
+              <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                No hay pagos para mostrar.
               </div>
             ) : (
               <div className="space-y-2">
@@ -1074,12 +1080,12 @@ export default function ContractDetailPage({ params }: PageProps) {
             </div>
             {contractNotificationError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {contractNotificationError}
+                Ocurrió un error. Intentá de nuevo.
               </div>
             )}
             {notificationSendError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {notificationSendError}
+                Ocurrió un error. Intentá de nuevo.
               </div>
             )}
             <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
@@ -1102,14 +1108,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                   El contrato tiene notificaciones desactivadas.
                 </div>
               ) : notificationsDueToday.length === 0 ? (
-                <div className="mt-2 text-xs text-zinc-500">
-                  Sin cuotas para notificar hoy.
+                <div className="mt-2 rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                  No hay alertas para mostrar.
                 </div>
               ) : (
                 <div className="mt-3 space-y-3">
                   {notificationsDueToday.map(({ installment, dueType, message }) => {
                     const label =
-                      dueType === "PRE_DUE_5" ? "5 dias antes" : "1 dia despues";
+                      dueType === "PRE_DUE_5" ? "5 dias antes" : "1 dia después";
                     const whatsappNumber = tenantWhatsapp
                       ? tenantWhatsapp.replace(/\D/g, "")
                       : "";
@@ -1722,14 +1728,16 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
               {contractEventsError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {contractEventsError}
+                  Ocurrió un error. Intentá de nuevo.
                 </div>
               )}
               {contractEventsLoading ? (
-                <div className="text-sm text-zinc-600">Cargando eventos...</div>
+                <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                  Cargando...
+                </div>
               ) : contractEvents.length === 0 ? (
-                <div className="text-sm text-zinc-600">
-                  Sin eventos registrados.
+                <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                  No hay actividad para mostrar.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1801,7 +1809,7 @@ export default function ContractDetailPage({ params }: PageProps) {
             </div>
             {exportZipError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {exportZipError}
+                Ocurrió un error. Intentá de nuevo.
               </div>
             )}
             {exportZipSuccess && (
