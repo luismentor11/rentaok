@@ -12,9 +12,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="sticky top-0 h-screen w-64 border-r border-border bg-surface px-5 py-6">
           <Link href="/dashboard" className="inline-flex items-center">
             <img
-              src="/window.svg"
+              src="/brand/logo.png"
               alt="RentaOK"
-              className="h-8 w-8"
+              className="h-8 w-auto"
             />
           </Link>
           <div className="mt-6 space-y-2 text-sm font-medium text-text-muted">
