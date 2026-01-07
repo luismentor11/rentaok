@@ -173,17 +173,36 @@ export default function NewContractPage() {
       email: guarantor.email.trim(),
       whatsapp: guarantor.whatsapp.trim(),
     }));
-    if (trimmedGuarantors.length === 0) {
-      setError("Debes cargar al menos un garante.");
-      return;
-    }
-    if (trimmedGuarantors.some((guarantor) => !guarantor.fullName)) {
-      setError("Todos los garantes deben tener nombre.");
-      return;
-    }
-    if (trimmedGuarantors.some((guarantor) => !guarantor.address)) {
-      setError("Todos los garantes deben tener domicilio.");
-      return;
+    const filledGuarantors = trimmedGuarantors.filter(
+      (guarantor) =>
+        guarantor.fullName ||
+        guarantor.dni ||
+        guarantor.address ||
+        guarantor.email ||
+        guarantor.whatsapp
+    );
+    const validGuarantors = filledGuarantors.filter(
+      (guarantor) => guarantor.fullName && guarantor.address
+    );
+    const missingGuarantorName = filledGuarantors.some(
+      (guarantor) => !guarantor.fullName
+    );
+    const missingGuarantorAddress = filledGuarantors.some(
+      (guarantor) => !guarantor.address
+    );
+    if (guaranteeType === "GARANTES") {
+      if (filledGuarantors.length === 0) {
+        setError("Debes cargar al menos un garante.");
+        return;
+      }
+      if (missingGuarantorName) {
+        setError("Todos los garantes deben tener nombre.");
+        return;
+      }
+      if (missingGuarantorAddress) {
+        setError("Todos los garantes deben tener domicilio.");
+        return;
+      }
     }
     if (!contractPdf) {
       setError("El PDF del contrato es obligatorio.");
@@ -236,7 +255,7 @@ export default function NewContractPage() {
             whatsapp: ownerWhatsapp.trim() || undefined,
           },
         },
-        guarantors: trimmedGuarantors.map((guarantor) => ({
+        guarantors: validGuarantors.map((guarantor) => ({
           fullName: guarantor.fullName,
           dni: guarantor.dni || undefined,
           address: guarantor.address,
@@ -275,12 +294,13 @@ export default function NewContractPage() {
   const updateRulePeriodValue = Number(updateRulePeriod);
   const depositValue = Number(depositAmount || "0");
   const guarantorsValid =
-    guarantors.length > 0 &&
-    guarantors.every(
-      (guarantor) =>
-        Boolean(guarantor.fullName.trim()) &&
-        Boolean(guarantor.address.trim())
-    );
+    guaranteeType !== "GARANTES" ||
+    (guarantors.length > 0 &&
+      guarantors.every(
+        (guarantor) =>
+          Boolean(guarantor.fullName.trim()) &&
+          Boolean(guarantor.address.trim())
+      ));
   const isFormValid =
     Boolean(propertyTitle.trim()) &&
     Boolean(propertyAddress.trim()) &&
