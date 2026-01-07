@@ -174,7 +174,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
       </div>
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Ocurrió un error. Intentá de nuevo.
+          Ocurrio un error. Intenta de nuevo.
         </div>
       )}
       {toastMessage && (
@@ -188,7 +188,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
         </div>
       ) : services.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-          No hay servicios para este período.
+          No hay servicios para este periodo.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-surface">
@@ -297,7 +297,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
                 />
                 {!isAmountValid && (
                   <div className="mt-1 text-xs text-red-600">
-                    Importe inválido
+                    Importe invalido
                   </div>
                 )}
               </div>
