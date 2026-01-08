@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import {
-  listInstallmentsForTenant,
+  listInstallmentsForTenantPage,
   InstallmentRecord,
 } from "@/lib/db/installments";
 
@@ -19,6 +19,8 @@ export default function PaymentsPage() {
   const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
   const [installmentsError, setInstallmentsError] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<any | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -61,9 +63,11 @@ export default function PaymentsPage() {
       setInstallmentsLoading(true);
       setInstallmentsError(null);
       try {
-        const list = await listInstallmentsForTenant(tenantId, { status: "ALL" });
+        const res = await listInstallmentsForTenantPage(tenantId, { status: "ALL" });
         if (!active) return;
-        setInstallments(list);
+        setInstallments(res.items);
+        setCursor(res.nextCursor);
+        setHasMore(Boolean(res.nextCursor));
       } catch (err: any) {
         if (!active) return;
         setInstallmentsError("No se pudieron cargar los pagos.");
@@ -77,6 +81,24 @@ export default function PaymentsPage() {
       active = false;
     };
   }, [tenantId]);
+
+  const loadMore = async () => {
+    if (!tenantId || !cursor || installmentsLoading) return;
+    setInstallmentsLoading(true);
+    try {
+      const res = await listInstallmentsForTenantPage(tenantId, {
+        status: "ALL",
+        cursor,
+      });
+      setInstallments((prev) => [...prev, ...res.items]);
+      setCursor(res.nextCursor);
+      setHasMore(Boolean(res.nextCursor));
+    } catch {
+      setInstallmentsError("No se pudieron cargar mas pagos.");
+    } finally {
+      setInstallmentsLoading(false);
+    }
+  };
 
   const getPaymentStatusLabel = (status: string) => {
     const normalized = status.trim().toUpperCase();
@@ -147,36 +169,48 @@ export default function PaymentsPage() {
           </Link>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-surface">
-          <table className="min-w-full text-sm text-zinc-700">
-            <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Periodo</th>
-                <th className="px-3 py-2 text-left font-medium">Estado</th>
-                <th className="px-3 py-2 text-left font-medium">Contrato</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200">
-              {installments.map((installment) => (
-                <tr key={installment.id} className="bg-white">
-                  <td className="px-3 py-2 font-medium text-zinc-900">
-                    {installment.period}
-                  </td>
-                  <td className="px-3 py-2">
-                    {getPaymentStatusLabel(installment.status)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/contracts/${installment.contractId}`}
-                      className="text-xs font-medium text-zinc-700 hover:text-zinc-900"
-                    >
-                      Ver contrato
-                    </Link>
-                  </td>
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-surface">
+            <table className="min-w-full text-sm text-zinc-700">
+              <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Periodo</th>
+                  <th className="px-3 py-2 text-left font-medium">Estado</th>
+                  <th className="px-3 py-2 text-left font-medium">Contrato</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-zinc-200">
+                {installments.map((installment) => (
+                  <tr key={installment.id} className="bg-white">
+                    <td className="px-3 py-2 font-medium text-zinc-900">
+                      {installment.period}
+                    </td>
+                    <td className="px-3 py-2">
+                      {getPaymentStatusLabel(installment.status)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link
+                        href={`/contracts/${installment.contractId}`}
+                        className="text-xs font-medium text-zinc-700 hover:text-zinc-900"
+                      >
+                        Ver contrato
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {hasMore && (
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={installmentsLoading}
+              className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
+            >
+              Cargar mas
+            </button>
+          )}
         </div>
       )}
     </section>
