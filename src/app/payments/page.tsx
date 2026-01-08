@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
+import {
+  listInstallmentsForTenant,
+  InstallmentRecord,
+} from "@/lib/db/installments";
 
 export default function PaymentsPage() {
   const { user, loading } = useAuth();
@@ -12,6 +16,9 @@ export default function PaymentsPage() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
+  const [installmentsLoading, setInstallmentsLoading] = useState(false);
+  const [installmentsError, setInstallmentsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -47,6 +54,37 @@ export default function PaymentsPage() {
     };
   }, [user, loading, router]);
 
+  useEffect(() => {
+    if (!tenantId) return;
+    let active = true;
+    const loadInstallments = async () => {
+      setInstallmentsLoading(true);
+      setInstallmentsError(null);
+      try {
+        const list = await listInstallmentsForTenant(tenantId, { status: "ALL" });
+        if (!active) return;
+        setInstallments(list);
+      } catch (err: any) {
+        if (!active) return;
+        setInstallmentsError("No se pudieron cargar los pagos.");
+      } finally {
+        if (active) setInstallmentsLoading(false);
+      }
+    };
+
+    loadInstallments();
+    return () => {
+      active = false;
+    };
+  }, [tenantId]);
+
+  const getPaymentStatusLabel = (status: string) => {
+    const normalized = status.trim().toUpperCase();
+    if (normalized === "PAGADA") return "paid";
+    if (normalized === "VENCIDA") return "overdue";
+    return "pending";
+  };
+
   if (loading || pageLoading) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
@@ -62,7 +100,7 @@ export default function PaymentsPage() {
   if (pageError) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        Ocurrió un error. Intentá de nuevo.
+        Ocurrio un error. Intenta de nuevo.
       </div>
     );
   }
@@ -90,48 +128,57 @@ export default function PaymentsPage() {
         </p>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-        <div>No hay pagos para mostrar.</div>
-        <Link
-          href="/contracts"
-          className="mt-2 inline-flex rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
-        >
-          Ir a contratos
-        </Link>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <div className="text-xs font-semibold text-zinc-500">Hoy</div>
-          <div className="mt-3 text-sm text-zinc-600">Placeholder</div>
+      {installmentsLoading ? (
+        <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+          Cargando pagos...
+        </div>
+      ) : installmentsError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {installmentsError}
+        </div>
+      ) : installments.length === 0 ? (
+        <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+          <div>No hay pagos para mostrar.</div>
           <Link
-            href="#"
-            className="mt-3 inline-flex text-sm font-medium text-zinc-800 hover:text-zinc-600"
+            href="/contracts"
+            className="mt-2 inline-flex rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
           >
-            Ver contrato
+            Ir a contratos
           </Link>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <div className="text-xs font-semibold text-zinc-500">Vencidos</div>
-          <div className="mt-3 text-sm text-zinc-600">Placeholder</div>
-          <Link
-            href="#"
-            className="mt-3 inline-flex text-sm font-medium text-zinc-800 hover:text-zinc-600"
-          >
-            Ver contrato
-          </Link>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-surface">
+          <table className="min-w-full text-sm text-zinc-700">
+            <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Periodo</th>
+                <th className="px-3 py-2 text-left font-medium">Estado</th>
+                <th className="px-3 py-2 text-left font-medium">Contrato</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-200">
+              {installments.map((installment) => (
+                <tr key={installment.id} className="bg-white">
+                  <td className="px-3 py-2 font-medium text-zinc-900">
+                    {installment.period}
+                  </td>
+                  <td className="px-3 py-2">
+                    {getPaymentStatusLabel(installment.status)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/contracts/${installment.contractId}`}
+                      className="text-xs font-medium text-zinc-700 hover:text-zinc-900"
+                    >
+                      Ver contrato
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <div className="text-xs font-semibold text-zinc-500">Parciales</div>
-          <div className="mt-3 text-sm text-zinc-600">Placeholder</div>
-          <Link
-            href="#"
-            className="mt-3 inline-flex text-sm font-medium text-zinc-800 hover:text-zinc-600"
-          >
-            Ver contrato
-          </Link>
-        </div>
-      </div>
+      )}
     </section>
   );
 }
