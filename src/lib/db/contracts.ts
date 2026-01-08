@@ -6,6 +6,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
+  query,
+  startAfter,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -21,6 +25,30 @@ export async function listContracts(tenantId: string) {
     id: docSnap.id,
     ...(docSnap.data() as Omit<Contract, "id">),
   })) as ContractRecord[];
+}
+
+export async function listContractsPage(
+  tenantId: string,
+  opts?: { pageSize?: number; cursor?: any }
+): Promise<{ items: ContractRecord[]; nextCursor: any | null }> {
+  const ref = collection(db, "tenants", tenantId, "contracts");
+  const pageSize = opts?.pageSize ?? 25;
+  const baseQuery = query(ref, orderBy("createdAt", "desc"));
+  const q = opts?.cursor
+    ? query(baseQuery, startAfter(opts.cursor), limit(pageSize))
+    : query(baseQuery, limit(pageSize));
+  const snap = await getDocs(q);
+  const items = snap.docs.map(
+    (docSnap) =>
+      ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<Contract, "id">),
+      }) as ContractRecord
+  );
+  const nextCursor = snap.docs.length
+    ? snap.docs[snap.docs.length - 1]
+    : null;
+  return { items, nextCursor };
 }
 
 export async function createContract(tenantId: string, data: Contract) {
