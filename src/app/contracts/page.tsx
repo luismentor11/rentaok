@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
-import { listContracts, ContractRecord } from "@/lib/db/contracts";
+import { listContractsPage, ContractRecord } from "@/lib/db/contracts";
 
 type ContractRecordWithProperty = ContractRecord & {
   property?: {
@@ -18,6 +18,10 @@ export default function ContractsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [contracts, setContracts] = useState<ContractRecordWithProperty[]>([]);
+  const [cursor, setCursor] = useState<any | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -45,9 +49,16 @@ export default function ContractsPage() {
           router.replace("/onboarding");
           return;
         }
-        const list = await listContracts(nextTenantId);
+        setContracts([]);
+        setCursor(null);
+        setHasMore(false);
+        setLoadingMore(false);
+        setMoreError(null);
+        const page = await listContractsPage(nextTenantId, { pageSize: 20 });
         if (!active) return;
-        setContracts(list);
+        setContracts(page.items);
+        setCursor(page.nextCursor);
+        setHasMore(!!page.nextCursor);
       } catch (err: any) {
         if (!active) return;
         setPageError(err?.message ?? "No se pudieron cargar contratos.");
@@ -101,7 +112,7 @@ export default function ContractsPage() {
       </div>
       {pageError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Ocurrió un error. Intentá de nuevo.
+          Ocurrio un error. Intenta de nuevo.
         </div>
       )}
       {pageError && (
@@ -148,6 +159,37 @@ export default function ContractsPage() {
             </li>
           ))}
         </ul>
+      )}
+      {contracts.length > 0 && hasMore && !pageError && (
+        <button
+          type="button"
+          onClick={async () => {
+            if (!tenantId || loadingMore || !hasMore) return;
+            setLoadingMore(true);
+            setMoreError(null);
+            try {
+              const page = await listContractsPage(tenantId, {
+                pageSize: 20,
+                cursor,
+              });
+              setContracts((prev) => [...prev, ...page.items]);
+              setCursor(page.nextCursor);
+              setHasMore(!!page.nextCursor);
+            } catch (err: any) {
+              setMoreError(err?.message ?? "Could not load more contracts.");
+            } finally {
+              setLoadingMore(false);
+            }
+          }}
+          className="rounded-md border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-alt"
+        >
+          {loadingMore ? "Cargando..." : "Cargar mas"}
+        </button>
+      )}
+      {moreError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          No se pudo cargar mas. Intenta de nuevo.
+        </div>
       )}
       {tenantId && (
         <div className="text-xs text-text-muted">Tenant: {tenantId}</div>
