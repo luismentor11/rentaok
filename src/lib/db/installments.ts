@@ -14,6 +14,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  startAfter,
   where,
   setDoc,
 } from "firebase/firestore";
@@ -267,6 +268,37 @@ export async function listInstallmentsForTenant(
     id: docSnap.id,
     ...(docSnap.data() as Omit<Installment, "id">),
   })) as InstallmentRecord[];
+}
+
+export async function listInstallmentsForTenantPage(
+  tenantId: string,
+  opts?: {
+    status?: InstallmentStatus | "ALL";
+    pageSize?: number;
+    cursor?: any;
+  }
+): Promise<{
+  items: InstallmentRecord[];
+  nextCursor: any | null;
+}> {
+  const installmentsRef = collection(db, "tenants", tenantId, "installments");
+  const constraints = [];
+  if (opts?.status && opts.status !== "ALL") {
+    constraints.push(where("status", "==", opts.status));
+  }
+  constraints.push(orderBy("dueDate", "asc"));
+  if (opts?.cursor) {
+    constraints.push(startAfter(opts.cursor));
+  }
+  constraints.push(limit(opts?.pageSize ?? 25));
+  const q = query(installmentsRef, ...constraints);
+  const snap = await getDocs(q);
+  const items = snap.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...(docSnap.data() as Omit<Installment, "id">),
+  })) as InstallmentRecord[];
+  const nextCursor = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+  return { items, nextCursor };
 }
 
 export async function listInstallmentItems(
