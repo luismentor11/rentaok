@@ -232,12 +232,17 @@ export default function NewContractPage() {
       setError("El deposito debe ser valido.");
       return;
     }
+    const nextPropertyId =
+      propertySelection === "manual"
+        ? crypto.randomUUID?.() ??
+          `${Date.now()}-${Math.random().toString(16).slice(2)}`
+        : propertySelection;
 
     setSubmitting(true);
     try {
       const contractId = await createContract(tenantId, {
         property: {
-          id: propertySelection === "manual" ? undefined : propertySelection,
+          id: nextPropertyId,
           title: propertyTitle.trim(),
           address: propertyAddress.trim(),
         },
