@@ -69,7 +69,8 @@ try {
 
 async function main() {
   const db = getFirestore();
-  const ref = db.collection("tenants").doc(tenantId).collection("contracts");
+  const tid = tenantId as string;
+  const ref = db.collection("tenants").doc(tid).collection("contracts");
 
   for (let i = 1; i <= count; i += 1) {
     await ref.add({
