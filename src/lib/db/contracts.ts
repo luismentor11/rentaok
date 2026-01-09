@@ -58,7 +58,15 @@ export async function createContract(tenantId: string, data: Contract) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  const docRef = await addDoc(ref, payload);
+  const nextPropertyId = payload.property?.id ?? crypto.randomUUID();
+  const sanitizedPayload = {
+    ...payload,
+    property: {
+      ...payload.property,
+      id: nextPropertyId,
+    },
+  };
+  const docRef = await addDoc(ref, sanitizedPayload);
   return docRef.id;
 }
 
