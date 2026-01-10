@@ -223,6 +223,16 @@ export default function ContractDetailPage({ params }: PageProps) {
           setError("Contrato no encontrado.");
           return;
         }
+        if (
+          !data.parties?.tenant?.fullName ||
+          !data.parties?.owner?.fullName ||
+          !data.dates?.startDate ||
+          !data.dates?.endDate
+        ) {
+          setError("Contrato incompleto. Revisar datos y volver a intentar.");
+          setContract(null);
+          return;
+        }
         setContract(data);
       } catch (err: any) {
         if (!active) return;
@@ -457,8 +467,8 @@ export default function ContractDetailPage({ params }: PageProps) {
     );
   }
 
-  const tenantEmail = contract.parties.tenant.email?.trim();
-  const tenantWhatsapp = contract.parties.tenant.whatsapp?.trim();
+  const tenantEmail = contract.parties?.tenant?.email?.trim();
+  const tenantWhatsapp = contract.parties?.tenant?.whatsapp?.trim();
   const contractNotificationsEnabled = Boolean(contract.notificationConfig?.enabled);
 
   const saveContractNotificationConfig = async (nextEnabled: boolean) => {
@@ -623,11 +633,11 @@ export default function ContractDetailPage({ params }: PageProps) {
               <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-600">
                 <div>
                   <span className="font-medium text-zinc-900">Inicio:</span>{" "}
-                  {contract.dates.startDate}
+                {contract.dates?.startDate ?? "-"}
                 </div>
                 <div>
                   <span className="font-medium text-zinc-900">Fin:</span>{" "}
-                  {contract.dates.endDate}
+                {contract.dates?.endDate ?? "-"}
                 </div>
                 <div>
                   <span className="font-medium text-zinc-900">Vence:</span> dia{" "}
@@ -665,21 +675,21 @@ export default function ContractDetailPage({ params }: PageProps) {
               <div className="rounded-lg border border-zinc-200 bg-white p-4">
                 <div className="text-xs font-semibold text-zinc-500">Locatario</div>
                 <div className="text-sm font-medium text-zinc-900">
-                  {contract.parties.tenant.fullName}
+                  {contract.parties?.tenant?.fullName ?? "-"}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  {contract.parties.tenant.email || "Sin email"} |{" "}
-                  {contract.parties.tenant.whatsapp || "Sin WhatsApp"}
+                  {contract.parties?.tenant?.email || "Sin email"} |{" "}
+                  {contract.parties?.tenant?.whatsapp || "Sin WhatsApp"}
                 </div>
               </div>
               <div className="rounded-lg border border-zinc-200 bg-white p-4">
                 <div className="text-xs font-semibold text-zinc-500">Propietario</div>
                 <div className="text-sm font-medium text-zinc-900">
-                  {contract.parties.owner.fullName}
+                  {contract.parties?.owner?.fullName ?? "-"}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  {contract.parties.owner.email || "Sin email"} |{" "}
-                  {contract.parties.owner.whatsapp || "Sin WhatsApp"}
+                  {contract.parties?.owner?.email || "Sin email"} |{" "}
+                  {contract.parties?.owner?.whatsapp || "Sin WhatsApp"}
                 </div>
               </div>
             </div>
