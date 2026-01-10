@@ -71,14 +71,21 @@ export async function createContract(tenantId: string, data: Contract) {
 }
 
 export async function getContract(tenantId: string, contractId: string) {
-  const ref = doc(db, "tenants", tenantId, "contracts", contractId);
+  let normalizedId = contractId;
+  try {
+    normalizedId = decodeURIComponent(contractId);
+  } catch {
+    normalizedId = contractId;
+  }
+  const ref = doc(db, "tenants", tenantId, "contracts", normalizedId);
   const snap = await getDoc(ref);
-  return snap.exists()
-    ? ({
-        id: snap.id,
-        ...(snap.data() as Omit<Contract, "id">),
-      } as ContractRecord)
-    : null;
+  if (snap.exists()) {
+    return {
+      id: snap.id,
+      ...(snap.data() as Omit<Contract, "id">),
+    } as ContractRecord;
+  }
+  return null;
 }
 
 export async function updateContract(
