@@ -223,16 +223,6 @@ export default function ContractDetailPage({ params }: PageProps) {
           setError("Contrato no encontrado.");
           return;
         }
-        if (
-          !data.parties?.tenant?.fullName ||
-          !data.parties?.owner?.fullName ||
-          !data.dates?.startDate ||
-          !data.dates?.endDate
-        ) {
-          setError("Contrato incompleto. Revisar datos y volver a intentar.");
-          setContract(null);
-          return;
-        }
         setContract(data);
       } catch (err: any) {
         if (!active) return;
