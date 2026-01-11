@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   Timestamp,
@@ -648,44 +648,33 @@ export async function markInstallmentPaidWithoutReceipt(
   note?: string
 ) {
   const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
-  const paymentRef = doc(
-    collection(db, "tenants", tenantId, "installments", installmentId, "payments")
-  );
+  const snap = await getDoc(installmentRef);
+  if (!snap.exists()) {
+    throw new Error("La cuota no existe.");
+  }
+
+  const data = snap.data() as Installment;
+  if (data.status === "PAGADA") {
+    return;
+  }
+  const total = Number(data.totals?.total ?? 0);
+  if (!Number.isFinite(total) || total <= 0) {
+    return;
+  }
+  const paidPrev = Number(data.totals?.paid ?? 0);
+  const missing = Math.max(total - paidPrev, 0);
+  if (missing <= 0) {
+    return;
+  }
+
   const noteValue = note?.trim() || "Marcada pagada sin comprobante";
-
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(installmentRef);
-    if (!snap.exists()) {
-      throw new Error("La cuota no existe.");
-    }
-
-    const data = snap.data() as Installment;
-    const total = Number(data.totals?.total ?? 0);
-    if (!Number.isFinite(total) || total <= 0) {
-      throw new Error("Total inválido para marcar pagada.");
-    }
-    const paidPrev = Number(data.totals?.paid ?? 0);
-    const missing = Math.max(total - paidPrev, 0);
-
-    transaction.update(installmentRef, {
-      "totals.paid": total,
-      "totals.due": 0,
-      status: "PAGADA",
-      "paymentFlags.hasUnverifiedPayments": true,
-      updatedAt: serverTimestamp(),
-    });
-
-    if (missing > 0) {
-      transaction.set(paymentRef, {
-        amount: missing,
-        paidAt: Timestamp.fromDate(new Date()),
-        method: "OTRO",
-        collectedBy,
-        withoutReceipt: true,
-        note: noteValue,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } satisfies InstallmentPayment);
-    }
+  await registerInstallmentPayment(tenantId, installmentId, {
+    amount: missing,
+    withoutReceipt: true,
+    method: "OTRO",
+    collectedBy,
+    paidAt: new Date(),
+    note: `${noteValue} (sin comprobante)`,
   });
 }
+
