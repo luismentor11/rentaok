@@ -108,6 +108,8 @@ export default function ContractDetailPage({ params }: PageProps) {
   const routeParams = useParams();
   const routeId =
     typeof routeParams?.id === "string" ? routeParams.id : params.id;
+  const normalizedRouteId =
+    typeof routeId === "string" && routeId.trim() ? routeId.trim() : "";
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [contract, setContract] = useState<ContractRecordWithProperty | null>(
@@ -175,6 +177,8 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [lateFeeError, setLateFeeError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [invalidContractId, setInvalidContractId] = useState(false);
+  const [contractNotFound, setContractNotFound] = useState(false);
   const [tab, setTab] = useState<TabKey>("resumen");
   const [contractNotificationSaving, setContractNotificationSaving] =
     useState(false);
@@ -210,6 +214,14 @@ export default function ContractDetailPage({ params }: PageProps) {
     const load = async () => {
       setPageLoading(true);
       setError(null);
+      setInvalidContractId(false);
+      setContractNotFound(false);
+      if (!normalizedRouteId) {
+        setInvalidContractId(true);
+        setContract(null);
+        setPageLoading(false);
+        return;
+      }
       try {
         const profile = await getUserProfile(user.uid);
         if (!active) return;
@@ -220,10 +232,11 @@ export default function ContractDetailPage({ params }: PageProps) {
           router.replace("/onboarding");
           return;
         }
-        const data = await getContract(nextTenantId, routeId);
+        const data = await getContract(nextTenantId, normalizedRouteId);
         if (!active) return;
         if (!data) {
-          setError("Contrato no encontrado.");
+          setContractNotFound(true);
+          setContract(null);
           return;
         }
         setContract(data);
@@ -239,7 +252,7 @@ export default function ContractDetailPage({ params }: PageProps) {
     return () => {
       active = false;
     };
-  }, [user, loading, router, params.id]);
+  }, [user, loading, router, normalizedRouteId]);
 
   const formatDueDate = (value: InstallmentRecord["dueDate"]) => {
     const date = toDateSafe(value);
@@ -418,6 +431,34 @@ export default function ContractDetailPage({ params }: PageProps) {
     return null;
   }
 
+  if (invalidContractId) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div>Contrato inválido.</div>
+        <Link
+          href="/contracts"
+          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
+        >
+          Volver a contratos
+        </Link>
+      </div>
+    );
+  }
+
+  if (contractNotFound) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div>Contrato no encontrado.</div>
+        <Link
+          href="/contracts"
+          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
+        >
+          Volver a contratos
+        </Link>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -435,13 +476,7 @@ export default function ContractDetailPage({ params }: PageProps) {
   if (!tenantId) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">
-        <div>Necesitas crear un tenant para continuar.</div>
-        <Link
-          href="/onboarding"
-          className="mt-2 inline-flex text-xs font-medium text-zinc-700 hover:text-zinc-900"
-        >
-          Ir a onboarding
-        </Link>
+        <div>Cargando tenant...</div>
       </div>
     );
   }
@@ -449,7 +484,7 @@ export default function ContractDetailPage({ params }: PageProps) {
   if (!contract) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        <div>Ocurrió un error. Intentá de nuevo.</div>
+        <div>Contrato no encontrado.</div>
         <Link
           href="/contracts"
           className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
@@ -460,9 +495,17 @@ export default function ContractDetailPage({ params }: PageProps) {
     );
   }
 
-  const tenantEmail = contract.parties?.tenant?.email?.trim();
-  const tenantWhatsapp = contract.parties?.tenant?.whatsapp?.trim();
+  const tenantEmail = contract.parties?.tenant?.email?.trim() ?? "";
+  const tenantWhatsapp = contract.parties?.tenant?.whatsapp?.trim() ?? "";
   const contractNotificationsEnabled = Boolean(contract.notificationConfig?.enabled);
+  const guarantors = contract.guarantors ?? [];
+  const contractTitle = contract.property?.title ?? "-";
+  const contractAddress = contract.property?.address ?? "-";
+  const contractStartDate = contract.dates?.startDate ?? "-";
+  const contractEndDate = contract.dates?.endDate ?? "-";
+  const contractDueDay = contract.dueDay ?? "-";
+  const contractRentAmount = contract.rentAmount ?? "-";
+  const contractGuaranteeType = contract.guaranteeType ?? "-";
 
   const saveContractNotificationConfig = async (nextEnabled: boolean) => {
     if (!tenantId) return;
@@ -613,36 +656,36 @@ export default function ContractDetailPage({ params }: PageProps) {
         {tab === "resumen" && (
           <div className="space-y-6">
             <div className="space-y-1">
-              <div className="text-sm text-zinc-500">Contrato {contract.id}</div>
+              <div className="text-sm text-zinc-500">
+                Contrato {contract.id ?? "-"}
+              </div>
               <h1 className="text-2xl font-semibold text-zinc-900">
-                {contract.property?.title || "-"}
+                {contractTitle}
               </h1>
-              <p className="text-sm text-zinc-600">
-                {contract.property?.address || "-"}
-              </p>
+              <p className="text-sm text-zinc-600">{contractAddress}</p>
             </div>
 
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-600">
                 <div>
                   <span className="font-medium text-zinc-900">Inicio:</span>{" "}
-                {contract.dates?.startDate ?? "-"}
+                  {contractStartDate}
                 </div>
                 <div>
                   <span className="font-medium text-zinc-900">Fin:</span>{" "}
-                {contract.dates?.endDate ?? "-"}
+                  {contractEndDate}
                 </div>
                 <div>
                   <span className="font-medium text-zinc-900">Vence:</span> dia{" "}
-                  {contract.dueDay}
+                  {contractDueDay}
                 </div>
                 <div>
                   <span className="font-medium text-zinc-900">Monto:</span>{" "}
-                  {contract.rentAmount}
+                  {contractRentAmount}
                 </div>
                 <div>
                   <span className="font-medium text-zinc-900">Garantia:</span>{" "}
-                  {contract.guaranteeType}
+                  {contractGuaranteeType}
                 </div>
               </div>
               <div className="mt-3 text-sm">
@@ -671,8 +714,8 @@ export default function ContractDetailPage({ params }: PageProps) {
                   {contract.parties?.tenant?.fullName ?? "-"}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  {contract.parties?.tenant?.email || "Sin email"} |{" "}
-                  {contract.parties?.tenant?.whatsapp || "Sin WhatsApp"}
+                  {contract.parties?.tenant?.email ?? "Sin email"} |{" "}
+                  {contract.parties?.tenant?.whatsapp ?? "Sin WhatsApp"}
                 </div>
               </div>
               <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -681,27 +724,27 @@ export default function ContractDetailPage({ params }: PageProps) {
                   {contract.parties?.owner?.fullName ?? "-"}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  {contract.parties?.owner?.email || "Sin email"} |{" "}
-                  {contract.parties?.owner?.whatsapp || "Sin WhatsApp"}
+                  {contract.parties?.owner?.email ?? "Sin email"} |{" "}
+                  {contract.parties?.owner?.whatsapp ?? "Sin WhatsApp"}
                 </div>
               </div>
             </div>
             <div className="space-y-3">
-              {contract.guarantors.map((guarantor, index) => (
+              {guarantors.map((guarantor, index) => (
                 <div
-                  key={`${guarantor.fullName}-${index}`}
+                  key={`${guarantor.fullName ?? "garante"}-${index}`}
                   className="rounded-lg border border-zinc-200 p-3"
                 >
                   <div className="text-sm font-medium text-zinc-900">
-                    {guarantor.fullName}
+                    {guarantor.fullName ?? "-"}
                   </div>
                   <div className="text-xs text-zinc-500">
                     {guarantor.dni ? `DNI: ${guarantor.dni}` : "DNI: -"} |{" "}
-                    {guarantor.address}
+                    {guarantor.address ?? "-"}
                   </div>
                   <div className="text-xs text-zinc-500">
-                    {guarantor.email || "Sin email"} |{" "}
-                    {guarantor.whatsapp || "Sin WhatsApp"}
+                    {guarantor.email ?? "Sin email"} |{" "}
+                    {guarantor.whatsapp ?? "Sin WhatsApp"}
                   </div>
                 </div>
               ))}
@@ -1317,7 +1360,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <div className="mt-2 text-xs text-zinc-500">
                   El contrato tiene notificaciones desactivadas.
                 </div>
-              ) : contract.guarantors.length === 0 ? (
+              ) : guarantors.length === 0 ? (
                 <div className="mt-2 text-xs text-zinc-500">(sin garantes)</div>
               ) : guarantorNotificationsDueToday.length === 0 ? (
                 <div className="mt-2 text-xs text-zinc-500">
@@ -1369,7 +1412,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                           </div>
                         </details>
                         <div className="mt-3 space-y-2">
-                          {contract.guarantors.map((guarantor, index) => {
+                          {guarantors.map((guarantor, index) => {
                             const guarantorEmail = guarantor.email?.trim();
                             const guarantorWhatsapp = guarantor.whatsapp?.trim();
                             const whatsappNumber = guarantorWhatsapp
