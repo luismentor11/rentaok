@@ -93,6 +93,9 @@ export type InstallmentPayment = {
   withoutReceipt: boolean;
   receipt?: PaymentReceipt;
   note?: string;
+  metadata?: {
+    overpay?: number;
+  };
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -116,6 +119,42 @@ const getDueDateFromInstallment = (installment: Installment) => {
   const maybeDate = (installment.dueDate as any)?.toDate?.();
   if (maybeDate instanceof Date) return maybeDate;
   return installment.dueDate instanceof Date ? installment.dueDate : new Date();
+};
+
+const getValidDueDateFromInstallment = (installment: Installment) => {
+  const raw = installment.dueDate as any;
+  const maybeDate = raw?.toDate?.();
+  if (maybeDate instanceof Date && Number.isFinite(maybeDate.getTime())) {
+    return maybeDate;
+  }
+  if (installment.dueDate instanceof Date) {
+    return Number.isFinite(installment.dueDate.getTime())
+      ? installment.dueDate
+      : null;
+  }
+  return null;
+};
+
+const createDeterministicPaymentId = (input: {
+  installmentId: string;
+  amount: number;
+  paidAtISO: string;
+  method?: string;
+  note?: string | null;
+}) => {
+  const base = [
+    input.installmentId,
+    String(input.amount),
+    input.paidAtISO,
+    input.method ?? "",
+    input.note ?? "",
+  ].join("|");
+  let hash = 5381;
+  for (let i = 0; i < base.length; i += 1) {
+    hash = (hash << 5) + hash + base.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
 };
 
 const recomputeInstallmentTotalsAndStatusTx = async (
@@ -497,9 +536,6 @@ export async function registerInstallmentPayment(
   }
 
   const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
-  const paymentRef = doc(
-    collection(db, "tenants", tenantId, "installments", installmentId, "payments")
-  );
   const noteValue = input.note?.trim();
   const paidAtValue =
     input.paidAt instanceof Date
@@ -510,29 +546,68 @@ export async function registerInstallmentPayment(
   if (!Number.isFinite(paidAtValue.getTime())) {
     throw new Error("La fecha de pago es invalida.");
   }
+  const paidAtISO = paidAtValue.toISOString();
+  const paymentId = createDeterministicPaymentId({
+    installmentId,
+    amount: input.amount,
+    paidAtISO,
+    method: input.method,
+    note: noteValue ?? null,
+  });
 
-  await runTransaction(db, async (transaction) => {
-    const snap = await transaction.get(installmentRef);
-    if (!snap.exists()) {
+  return runTransaction(db, async (transaction) => {
+    const paymentRef = doc(
+      collection(db, "tenants", tenantId, "installments", installmentId, "payments"),
+      paymentId
+    );
+    const [installmentSnap, paymentSnap] = await Promise.all([
+      transaction.get(installmentRef),
+      transaction.get(paymentRef),
+    ]);
+    if (!installmentSnap.exists()) {
       throw new Error("La cuota no existe.");
     }
+    if (paymentSnap.exists()) {
+      const existing = installmentSnap.data() as Installment;
+      const currentPaid = Number(existing.totals?.paid ?? 0);
+      return {
+        paymentId,
+        newPaid: currentPaid,
+        status: existing.status,
+        idempotent: true,
+      };
+    }
 
-    const data = snap.data() as Installment;
+    const data = installmentSnap.data() as Installment;
     const totals = data.totals ?? { total: 0, paid: 0, due: 0 };
     const total = Number(totals.total ?? 0);
     const paid = Number(totals.paid ?? 0);
-    const newPaid = paid + input.amount;
-    const newDue = Math.max(total - newPaid, 0);
-    const dueDate = getDueDateFromInstallment(data);
-    const newStatus =
-      newPaid >= total
-        ? "PAGADA"
-        : newPaid > 0
-          ? "PARCIAL"
-          : getStatusForDueDate(dueDate);
+    const newPaidRaw = paid + input.amount;
+    const newPaidClamped = Math.min(total, Math.max(0, newPaidRaw));
+    const overpay = newPaidRaw > total ? newPaidRaw - total : 0;
+    const newDue = Math.max(total - newPaidClamped, 0);
+    const currentStatus = data.status;
+    const validDueDate = getValidDueDateFromInstallment(data);
+    let newStatus: InstallmentStatus = currentStatus;
+    if (newPaidClamped >= total && total > 0) {
+      newStatus = "PAGADA";
+    } else if (newPaidClamped > 0) {
+      newStatus = "PARCIAL";
+    } else if (validDueDate) {
+      newStatus = getStatusForDueDate(validDueDate);
+    } else if (["POR_VENCER", "VENCE_HOY", "VENCIDA", "EN_ACUERDO"].includes(currentStatus)) {
+      newStatus = currentStatus;
+    } else {
+      newStatus = currentStatus;
+    }
+    if (!validDueDate) {
+      console.warn("Installment dueDate invalida; se conserva status actual", {
+        installmentId,
+      });
+    }
 
     const updatePayload: Record<string, unknown> = {
-      "totals.paid": newPaid,
+      "totals.paid": newPaidClamped,
       "totals.due": newDue,
       status: newStatus,
       updatedAt: serverTimestamp(),
@@ -541,8 +616,7 @@ export async function registerInstallmentPayment(
       updatePayload["paymentFlags.hasUnverifiedPayments"] = true;
     }
 
-    transaction.update(installmentRef, updatePayload);
-    transaction.set(paymentRef, {
+    const paymentRecord: InstallmentPayment = {
       amount: input.amount,
       paidAt: Timestamp.fromDate(paidAtValue),
       method: input.method,
@@ -550,9 +624,20 @@ export async function registerInstallmentPayment(
       withoutReceipt: input.withoutReceipt,
       ...(!input.withoutReceipt && input.receipt ? { receipt: input.receipt } : {}),
       ...(noteValue ? { note: noteValue } : {}),
+      ...(overpay > 0 ? { metadata: { overpay } } : {}),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    } satisfies InstallmentPayment);
+    };
+
+    transaction.update(installmentRef, updatePayload);
+    transaction.set(paymentRef, paymentRecord);
+
+    return {
+      paymentId,
+      newPaid: newPaidClamped,
+      status: newStatus,
+      idempotent: false,
+    };
   });
 }
 
