@@ -1,10 +1,53 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantLoading, setTenantLoading] = useState(false);
+  const [tenantError, setTenantError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setTenantId(null);
+      setTenantError(null);
+      setTenantLoading(false);
+      return;
+    }
+    setTenantLoading(true);
+    user
+      .getIdTokenResult()
+      .then((result) => {
+        if (!active) return;
+        const claimTenantId =
+          typeof result?.claims?.tenantId === "string"
+            ? result.claims.tenantId
+            : null;
+        setTenantId(claimTenantId);
+        setTenantError(
+          claimTenantId
+            ? null
+            : "Falta tenantId en sesión. Revisar custom claims / tenant context."
+        );
+      })
+      .catch(() => {
+        if (!active) return;
+        setTenantId(null);
+        setTenantError("No se pudo leer tenantId de la sesión.");
+      })
+      .finally(() => {
+        if (!active) return;
+        setTenantLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -66,7 +109,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </header>
-          <main className="flex-1 px-6 py-8 pb-28">{children}</main>
+          <main className="flex-1 px-6 py-8 pb-28">
+            {!tenantLoading && user && !tenantId && (
+              <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {tenantError ??
+                  "Falta tenantId en sesión. Revisar custom claims / tenant context."}
+              </div>
+            )}
+            {children}
+          </main>
         </div>
       </div>
       <footer className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 px-6 py-3 text-xs text-text-muted backdrop-blur">
