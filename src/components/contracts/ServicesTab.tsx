@@ -14,6 +14,8 @@ import {
   where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { useAuth } from "@/hooks/useAuth";
+import { getUserProfile } from "@/lib/db/users";
 import { db, storage } from "@/lib/firebase";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
 type ServiceRecord = {
@@ -68,6 +70,10 @@ const statusOptions = [
 ] as const;
 
 export default function ServicesTab({ contractId, role }: ServicesTabProps) {
+  const { user, loading: authLoading } = useAuth();
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [tenantLoading, setTenantLoading] = useState(true);
+  const [tenantError, setTenantError] = useState<string | null>(null);
   const [period, setPeriod] = useState(getCurrentPeriodValue());
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,11 +90,51 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!contractId || !period) return;
+    if (authLoading) return;
+    if (!user) {
+      setTenantError("Necesitas iniciar sesion para ver los servicios.");
+      setTenantId(null);
+      setTenantLoading(false);
+      return;
+    }
+    let active = true;
+    setTenantLoading(true);
+    setTenantError(null);
+    getUserProfile(user.uid)
+      .then((profile) => {
+        if (!active) return;
+        const nextTenantId = profile?.tenantId ?? null;
+        setTenantId(nextTenantId);
+        if (!nextTenantId) {
+          setTenantError("No se encontro un tenant activo.");
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setTenantError("No se pudo cargar el tenant.");
+        setTenantId(null);
+      })
+      .finally(() => {
+        if (!active) return;
+        setTenantLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authLoading, user]);
+
+  useEffect(() => {
+    if (!contractId || !period || tenantLoading) return;
+    if (!tenantId) {
+      setServices([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
-    const servicesRef = collection(db, "services");
+    const servicesRef = collection(db, "tenants", tenantId, "services");
     const q = query(
       servicesRef,
       where("contractId", "==", contractId),
@@ -113,7 +159,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
     );
 
     return () => unsubscribe();
-  }, [contractId, period]);
+  }, [contractId, period, tenantId, tenantLoading]);
 
   const isOwner = role === "owner";
   const canEdit = ["tenant_owner", "manager", "operator"].includes(role);
@@ -172,6 +218,11 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
           </div>
         </div>
       </div>
+      {tenantError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          {tenantError}
+        </div>
+      )}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           Ocurrio un error. Intenta de nuevo.
@@ -182,7 +233,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
           {toastMessage}
         </div>
       )}
-      {loading ? (
+      {tenantLoading || loading ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           Cargando...
         </div>
@@ -361,6 +412,10 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
                   setSaving(true);
                   setModalError(null);
                   try {
+                    if (!tenantId) {
+                      setModalError("No se encontro un tenant activo.");
+                      return;
+                    }
                     let receiptUrl: string | undefined;
                     if (receiptFile) {
                       receiptUrl = await uploadReceipt(
@@ -381,7 +436,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
                       payload.receiptUrl = receiptUrl;
                     }
                     await updateDoc(
-                      doc(db, "services", editingService.id),
+                      doc(db, "tenants", tenantId, "services", editingService.id),
                       payload
                     );
                     setModalOpen(false);
