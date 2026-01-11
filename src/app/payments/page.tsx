@@ -3,12 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { collectionGroup, getDocs, limit, orderBy, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
-import {
-  listInstallmentsForTenantPage,
-  InstallmentRecord,
-} from "@/lib/db/installments";
+import { db } from "@/lib/firebase";
+import { toDateSafe } from "@/lib/utils/firestoreDate";
+
+type PaymentRecord = {
+  id: string;
+  tenantId?: string;
+  contractId?: string;
+  installmentId?: string;
+  amount?: number;
+  method?: string;
+  paidAt?: unknown;
+  note?: string;
+};
 
 export default function PaymentsPage() {
   const { user, loading } = useAuth();
@@ -16,11 +26,9 @@ export default function PaymentsPage() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [pageError, setPageError] = useState<string | null>(null);
-  const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
-  const [installmentsLoading, setInstallmentsLoading] = useState(false);
-  const [installmentsError, setInstallmentsError] = useState<string | null>(null);
-  const [cursor, setCursor] = useState<any | null>(null);
-  const [hasMore, setHasMore] = useState(true);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,52 +67,41 @@ export default function PaymentsPage() {
   useEffect(() => {
     if (!tenantId) return;
     let active = true;
-    const loadInstallments = async () => {
-      setInstallmentsLoading(true);
-      setInstallmentsError(null);
+    const loadPayments = async () => {
+      setPaymentsLoading(true);
+      setPaymentsError(null);
       try {
-        const res = await listInstallmentsForTenantPage(tenantId, { status: "ALL" });
+        const q = query(
+          collectionGroup(db, "payments"),
+          where("tenantId", "==", tenantId),
+          orderBy("paidAt", "desc"),
+          limit(50)
+        );
+        const snap = await getDocs(q);
         if (!active) return;
-        setInstallments(res.items);
-        setCursor(res.nextCursor);
-        setHasMore(Boolean(res.nextCursor));
+        setPayments(
+          snap.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() as Omit<PaymentRecord, "id">),
+          }))
+        );
       } catch (err: any) {
         if (!active) return;
-        setInstallmentsError("No se pudieron cargar los pagos.");
+        setPaymentsError("No se pudieron cargar los pagos.");
       } finally {
-        if (active) setInstallmentsLoading(false);
+        if (active) setPaymentsLoading(false);
       }
     };
 
-    loadInstallments();
+    loadPayments();
     return () => {
       active = false;
     };
   }, [tenantId]);
 
-  const loadMore = async () => {
-    if (!tenantId || !cursor || installmentsLoading) return;
-    setInstallmentsLoading(true);
-    try {
-      const res = await listInstallmentsForTenantPage(tenantId, {
-        status: "ALL",
-        cursor,
-      });
-      setInstallments((prev) => [...prev, ...res.items]);
-      setCursor(res.nextCursor);
-      setHasMore(Boolean(res.nextCursor));
-    } catch {
-      setInstallmentsError("No se pudieron cargar mas pagos.");
-    } finally {
-      setInstallmentsLoading(false);
-    }
-  };
-
-  const getPaymentStatusLabel = (status: string) => {
-    const normalized = status.trim().toUpperCase();
-    if (normalized === "PAGADA") return "paid";
-    if (normalized === "VENCIDA") return "overdue";
-    return "pending";
+  const formatPaidAt = (value: PaymentRecord["paidAt"]) => {
+    const date = toDateSafe(value);
+    return date ? date.toLocaleString() : "-";
   };
 
   if (loading || pageLoading) {
@@ -150,15 +147,15 @@ export default function PaymentsPage() {
         </p>
       </div>
 
-      {installmentsLoading ? (
+      {paymentsLoading ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           Cargando pagos...
         </div>
-      ) : installmentsError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {installmentsError}
+      ) : paymentsError ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          {paymentsError}
         </div>
-      ) : installments.length === 0 ? (
+      ) : payments.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           <div>No hay pagos para mostrar.</div>
           <Link
@@ -174,43 +171,41 @@ export default function PaymentsPage() {
             <table className="min-w-full text-sm text-zinc-700">
               <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium">Periodo</th>
-                  <th className="px-3 py-2 text-left font-medium">Estado</th>
+                  <th className="px-3 py-2 text-left font-medium">Fecha</th>
+                  <th className="px-3 py-2 text-left font-medium">Monto</th>
+                  <th className="px-3 py-2 text-left font-medium">Metodo</th>
                   <th className="px-3 py-2 text-left font-medium">Contrato</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200">
-                {installments.map((installment) => (
-                  <tr key={installment.id} className="bg-white">
+                {payments.map((payment) => (
+                  <tr key={payment.id} className="bg-white">
                     <td className="px-3 py-2 font-medium text-zinc-900">
-                      {installment.period}
+                      {formatPaidAt(payment.paidAt)}
                     </td>
                     <td className="px-3 py-2">
-                      {getPaymentStatusLabel(installment.status)}
+                      {Number(payment.amount ?? 0).toLocaleString("es-AR")}
+                    </td>
+                    <td className="px-3 py-2 text-xs uppercase text-zinc-600">
+                      {payment.method ?? "-"}
                     </td>
                     <td className="px-3 py-2">
-                      <Link
-                        href={`/contracts/${installment.contractId}`}
-                        className="text-xs font-medium text-zinc-700 hover:text-zinc-900"
-                      >
-                        Ver contrato
-                      </Link>
+                      {payment.contractId ? (
+                        <Link
+                          href={`/contracts/${payment.contractId}`}
+                          className="text-xs font-medium text-zinc-700 hover:text-zinc-900"
+                        >
+                          Ver contrato
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-zinc-400">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {hasMore && (
-            <button
-              type="button"
-              onClick={loadMore}
-              disabled={installmentsLoading}
-              className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:text-zinc-400"
-            >
-              Cargar mas
-            </button>
-          )}
         </div>
       )}
     </section>

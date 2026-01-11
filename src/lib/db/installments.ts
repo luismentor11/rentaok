@@ -86,6 +86,9 @@ export type InstallmentItem = {
 export type InstallmentItemRecord = InstallmentItem & { id: string };
 
 export type InstallmentPayment = {
+  tenantId?: string;
+  contractId?: string;
+  installmentId?: string;
   amount: number;
   paidAt: Timestamp;
   method: PaymentMethod;
@@ -617,6 +620,9 @@ export async function registerInstallmentPayment(
     }
 
     const paymentRecord: InstallmentPayment = {
+      tenantId,
+      contractId: data.contractId,
+      installmentId,
       amount: input.amount,
       paidAt: Timestamp.fromDate(paidAtValue),
       method: input.method,
