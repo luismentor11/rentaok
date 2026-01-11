@@ -1,8 +1,20 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && request.auth.token.role == "superadmin";
+    }
+
+    function isTenantMember(tenantId) {
+      return isSignedIn() && request.auth.token.tenantId == tenantId;
+    }
+
     match /tenants/{tenantId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSuperAdmin() || isTenantMember(tenantId);
     }
   }
 }
