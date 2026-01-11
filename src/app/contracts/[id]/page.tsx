@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
@@ -105,6 +105,9 @@ type NotificationLogEntry = {
 export default function ContractDetailPage({ params }: PageProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const routeParams = useParams();
+  const routeId =
+    typeof routeParams?.id === "string" ? routeParams.id : params.id;
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [contract, setContract] = useState<ContractRecordWithProperty | null>(
@@ -217,7 +220,7 @@ export default function ContractDetailPage({ params }: PageProps) {
           router.replace("/onboarding");
           return;
         }
-        const data = await getContract(nextTenantId, params.id);
+        const data = await getContract(nextTenantId, routeId);
         if (!active) return;
         if (!data) {
           setError("Contrato no encontrado.");
@@ -1843,10 +1846,6 @@ export default function ContractDetailPage({ params }: PageProps) {
           </div>
         )}
       </div>
-
-      {tenantId && (
-        <div className="text-xs text-zinc-400">Tenant: {tenantId}</div>
-      )}
 
       {messageModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">

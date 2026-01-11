@@ -10,11 +10,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-bg text-text">
       <div className="flex min-h-screen">
         <aside className="sticky top-0 h-screen w-64 border-r border-border bg-surface px-5 py-6">
-          <Link href="/dashboard" className="inline-flex items-center gap-2 py-1">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 py-0.5">
             <img
               src="/brand/logo.png"
               alt="RentaOK"
-              className="h-32 w-auto"
+              className="h-20 w-auto"
             />
           </Link>
           <div className="mt-6 space-y-2 text-sm font-medium text-text-muted">

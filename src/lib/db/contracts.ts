@@ -5,6 +5,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   limit,
   orderBy,
@@ -78,7 +79,7 @@ export async function getContract(tenantId: string, contractId: string) {
     normalizedId = contractId;
   }
   const ref = doc(db, "tenants", tenantId, "contracts", normalizedId);
-  const snap = await getDoc(ref);
+  const snap = await getDocFromServer(ref).catch(() => getDoc(ref));
   if (snap.exists()) {
     return {
       id: snap.id,
