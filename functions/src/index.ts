@@ -2,6 +2,7 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
+export { onContractCreated } from "./contracts/onContractCreated";
 
 initializeApp();
 
