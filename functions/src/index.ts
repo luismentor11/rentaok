@@ -3,6 +3,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 export { onContractCreated } from "./contracts/onContractCreated";
+export { recomputeInstallmentStatusDaily } from "./installments/recomputeInstallmentStatusDaily";
 
 initializeApp();
 
