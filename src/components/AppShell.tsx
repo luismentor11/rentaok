@@ -67,6 +67,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [user, tenantId]);
 
   useEffect(() => {
+    if (!user || !tenantId) return;
+    let active = true;
+    const persistTenantId = async () => {
+      try {
+        await setDoc(
+          doc(db, "users", user.uid),
+          { tenantId, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      } catch (error) {
+        if (!active) return;
+        console.warn("No se pudo persistir tenantId en perfil", error);
+      }
+    };
+
+    persistTenantId();
+    return () => {
+      active = false;
+    };
+  }, [user, tenantId]);
+
+  useEffect(() => {
     if (!user || tenantLoading || tenantId || autoDetecting || autoDetectChecked) {
       return;
     }
