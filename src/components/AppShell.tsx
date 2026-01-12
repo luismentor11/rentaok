@@ -78,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         );
       } catch (error) {
         if (!active) return;
-        console.warn("No se pudo persistir tenantId en perfil", error);
+        console.warn("No se pudo persistir tenantId en users/{uid}", error);
       }
     };
 
