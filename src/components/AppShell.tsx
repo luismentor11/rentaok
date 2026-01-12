@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantLoading, setTenantLoading] = useState(false);
-  const [tenantError, setTenantError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     if (!user) {
       setTenantId(null);
-      setTenantError(null);
       setTenantLoading(false);
       return;
     }
@@ -28,16 +29,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ? result.claims.tenantId
             : null;
         setTenantId(claimTenantId);
-        setTenantError(
-          claimTenantId
-            ? null
-            : "Falta tenantId en sesión. Revisar custom claims / tenant context."
-        );
       })
       .catch(() => {
         if (!active) return;
         setTenantId(null);
-        setTenantError("No se pudo leer tenantId de la sesión.");
       })
       .finally(() => {
         if (!active) return;
@@ -48,6 +43,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!tenantLoading && user && !tenantId && !pathname.startsWith("/tenants")) {
+      router.replace("/tenants");
+    }
+  }, [tenantLoading, user, tenantId, pathname, router]);
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -117,12 +118,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           <main className="flex-1 px-6 py-8 pb-28">
-            {!tenantLoading && user && !tenantId && (
-              <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                {tenantError ??
-                  "Falta tenantId en sesión. Revisar custom claims / tenant context."}
-              </div>
-            )}
+            {!tenantLoading &&
+              user &&
+              !tenantId &&
+              !pathname.startsWith("/tenants") && (
+                <div className="mb-6 rounded-lg border border-zinc-200 bg-surface px-4 py-3 text-sm text-zinc-600">
+                  Cargando...
+                </div>
+              )}
             {children}
           </main>
         </div>
@@ -141,3 +144,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
