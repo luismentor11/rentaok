@@ -10,6 +10,7 @@ import {
   limit,
   orderBy,
   query,
+  setDoc,
   startAfter,
   serverTimestamp,
   updateDoc,
@@ -53,6 +54,11 @@ export async function listContractsPage(
 }
 
 export async function createContract(tenantId: string, data: Contract) {
+  await setDoc(
+    doc(db, "tenants", tenantId),
+    { updatedAt: serverTimestamp(), createdAt: serverTimestamp() },
+    { merge: true }
+  );
   const ref = collection(db, "tenants", tenantId, "contracts");
   const payload = {
     ...data,
@@ -94,6 +100,11 @@ export async function updateContract(
   contractId: string,
   data: Partial<Contract>
 ) {
+  await setDoc(
+    doc(db, "tenants", tenantId),
+    { updatedAt: serverTimestamp(), createdAt: serverTimestamp() },
+    { merge: true }
+  );
   const ref = doc(db, "tenants", tenantId, "contracts", contractId);
   await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
 }
