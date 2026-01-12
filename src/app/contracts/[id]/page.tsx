@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  where,
+} from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { getContract, ContractRecord } from "@/lib/db/contracts";
@@ -19,7 +27,6 @@ import {
 import {
   generateInstallmentsForContract,
   listInstallmentItems,
-  listInstallmentsByContract,
   upsertInstallmentItem,
   deleteInstallmentItem,
   addLateFeeItem,
@@ -268,10 +275,22 @@ export default function ContractDetailPage({ params }: PageProps) {
     setInstallmentsLoading(true);
     setInstallmentsError(null);
     try {
-      const list = await listInstallmentsByContract(tenant, contractId);
-      setInstallments(list);
+      const installmentsRef = collection(db, "tenants", tenant, "installments");
+      const q = query(
+        installmentsRef,
+        where("contractId", "==", contractId),
+        orderBy("period", "asc")
+      );
+      const snap = await getDocs(q);
+      setInstallments(
+        snap.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<InstallmentRecord, "id">),
+        }))
+      );
     } catch (err: any) {
       setInstallmentsError(err?.message ?? "No se pudieron cargar cuotas.");
+      setInstallments([]);
     } finally {
       setInstallmentsLoading(false);
     }
