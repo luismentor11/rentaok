@@ -8,8 +8,6 @@ type InstallmentRecord = {
   dueDate?: FirebaseFirestore.Timestamp | Date;
 };
 
-const db = getFirestore();
-
 const toDateNumberUtc = (date: Date) =>
   date.getUTCFullYear() * 10000 + (date.getUTCMonth() + 1) * 100 + date.getUTCDate();
 
@@ -30,6 +28,7 @@ const toDateSafe = (value: InstallmentRecord["dueDate"]) => {
 export const recomputeInstallmentStatusDaily = onSchedule(
   { schedule: "every day 02:30", timeZone: "UTC" },
   async () => {
+    const db = getFirestore();
     const targetStatuses: InstallmentStatus[] = [
       "POR_VENCER",
       "VENCE_HOY",
