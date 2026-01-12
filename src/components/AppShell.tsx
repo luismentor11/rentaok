@@ -212,8 +212,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           <main className="flex-1 px-6 py-8 pb-28">
-            {!tenantLoading &&
-              (autoDetecting || autoDetectChecked) &&
+            {(tenantLoading || autoDetecting) &&
               user &&
               !tenantId &&
               !pathname.startsWith("/tenants") && (
