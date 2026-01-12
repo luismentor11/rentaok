@@ -77,7 +77,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
   const [period, setPeriod] = useState(getCurrentPeriodValue());
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorText, setErrorText] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<ServiceRecord | null>(
     null
   );
@@ -132,7 +132,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
       return;
     }
     setLoading(true);
-    setError(null);
+    setErrorText(null);
 
     const servicesRef = collection(db, "tenants", tenantId, "services");
     const q = query(
@@ -153,7 +153,12 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
         setLoading(false);
       },
       (err) => {
-        setError(err?.message ?? "No se pudieron cargar servicios.");
+        console.error("ContractTab:Servicios ERROR", err);
+        const nextErrorText =
+          err && typeof err === "object"
+            ? err.stack || err.message || JSON.stringify(err)
+            : String(err);
+        setErrorText(nextErrorText);
         setLoading(false);
       }
     );
@@ -223,9 +228,22 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
           {tenantError}
         </div>
       )}
-      {error && (
+      {errorText && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Ocurrio un error. Intenta de nuevo.
+          <div>Error real: {errorText.slice(0, 300)}</div>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(errorText);
+              } catch (err) {
+                console.error("No se pudo copiar el error", err);
+              }
+            }}
+            className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
+          >
+            Copiar error
+          </button>
         </div>
       )}
       {toastMessage && (

@@ -124,9 +124,9 @@ export default function ContractDetailPage({ params }: PageProps) {
   );
   const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
-  const [installmentsError, setInstallmentsError] = useState<string | null>(
-    null
-  );
+  const [installmentsErrorText, setInstallmentsErrorText] = useState<
+    string | null
+  >(null);
   const [installmentActions, setInstallmentActions] = useState<
     Record<string, { markPaid?: boolean; notifyToggle?: boolean }>
   >({});
@@ -273,7 +273,7 @@ export default function ContractDetailPage({ params }: PageProps) {
 
   const loadInstallments = async (tenant: string, contractId: string) => {
     setInstallmentsLoading(true);
-    setInstallmentsError(null);
+    setInstallmentsErrorText(null);
     try {
       const installmentsRef = collection(db, "tenants", tenant, "installments");
       const q = query(
@@ -289,7 +289,12 @@ export default function ContractDetailPage({ params }: PageProps) {
         }))
       );
     } catch (err: any) {
-      setInstallmentsError(err?.message ?? "No se pudieron cargar cuotas.");
+      console.error("ContractTab:Pagos ERROR", err);
+      const errorText =
+        err && typeof err === "object"
+          ? err.stack || err.message || JSON.stringify(err)
+          : String(err);
+      setInstallmentsErrorText(errorText);
       setInstallments([]);
     } finally {
       setInstallmentsLoading(false);
@@ -784,15 +789,18 @@ export default function ContractDetailPage({ params }: PageProps) {
                     "Esto creara cuotas mensuales para este contrato."
                   );
                   if (!ok) return;
-                  setInstallmentsError(null);
+                  setInstallmentsErrorText(null);
                   setInstallmentsLoading(true);
                   try {
                     await generateInstallmentsForContract(tenantId, contract);
                     await loadInstallments(tenantId, contract.id);
                   } catch (err: any) {
-                    setInstallmentsError(
-                      err?.message ?? "No se pudieron generar cuotas."
-                    );
+                    console.error("ContractTab:Pagos ERROR", err);
+                    const errorText =
+                      err && typeof err === "object"
+                        ? err.stack || err.message || JSON.stringify(err)
+                        : String(err);
+                    setInstallmentsErrorText(errorText);
                   } finally {
                     setInstallmentsLoading(false);
                   }
@@ -802,9 +810,24 @@ export default function ContractDetailPage({ params }: PageProps) {
                 Generar cuotas
               </button>
             </div>
-            {installmentsError && (
+            {installmentsErrorText && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Ocurrió un error. Intentá de nuevo.
+                <div>
+                  Error real: {installmentsErrorText.slice(0, 300)}
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(installmentsErrorText);
+                    } catch (err) {
+                      console.error("No se pudo copiar el error", err);
+                    }
+                  }}
+                  className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
+                >
+                  Copiar error
+                </button>
               </div>
             )}
             {installmentsLoading ? (
@@ -887,7 +910,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                                   notifyToggle: true,
                                 },
                               }));
-                              setInstallmentsError(null);
+                              setInstallmentsErrorText(null);
                               try {
                                 await setInstallmentNotificationOverride(
                                   tenantId,
@@ -899,7 +922,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                                   installment.contractId
                                 );
                               } catch (err: any) {
-                                setInstallmentsError(
+                                setInstallmentsErrorText(
                                   err?.message ??
                                     "No se pudo actualizar la notificacion."
                                 );
@@ -945,7 +968,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                           onClick={async () => {
                             if (!tenantId) return;
                             if (!user?.uid) {
-                              setInstallmentsError(
+                              setInstallmentsErrorText(
                                 "No se pudo obtener el usuario."
                               );
                               return;
@@ -961,7 +984,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                                 markPaid: true,
                               },
                             }));
-                            setInstallmentsError(null);
+                            setInstallmentsErrorText(null);
                             try {
                               await markInstallmentPaidWithoutReceipt(
                                 tenantId,
@@ -973,7 +996,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                                 installment.contractId
                               );
                             } catch (err: any) {
-                              setInstallmentsError(
+                              setInstallmentsErrorText(
                                 err?.message ??
                                   "No se pudo marcar como pagada."
                               );
