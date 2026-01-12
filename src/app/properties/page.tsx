@@ -117,9 +117,6 @@ export default function PropertiesPage() {
           ))}
         </ul>
       )}
-      {tenantId && (
-        <div className="text-xs text-zinc-400">Tenant: {tenantId}</div>
-      )}
     </section>
   );
 }

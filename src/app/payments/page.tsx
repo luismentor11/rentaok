@@ -182,7 +182,7 @@ export default function PaymentsPage() {
         </div>
       ) : installments.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-          <div>No hay cuotas generadas todavia.</div>
+          <div>No hay cánones generados todavía.</div>
           <Link
             href="/contracts"
             className="mt-2 inline-flex rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"

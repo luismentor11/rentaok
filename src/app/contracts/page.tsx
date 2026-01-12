@@ -191,9 +191,6 @@ export default function ContractsPage() {
           No se pudo cargar mas. Intenta de nuevo.
         </div>
       )}
-      {tenantId && (
-        <div className="text-xs text-text-muted">Tenant: {tenantId}</div>
-      )}
     </section>
   );
 }

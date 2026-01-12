@@ -30,8 +30,9 @@ export default function PagosPage() {
     <section className="space-y-2">
       <h1 className="text-2xl font-semibold text-zinc-900">Pagos</h1>
       <p className="text-sm text-zinc-600">
-        Pagos (próximo paquete: movimientos)
+        No hay pagos registrados todavía.
       </p>
     </section>
   );
 }
+
