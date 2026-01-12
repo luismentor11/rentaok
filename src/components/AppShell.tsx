@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  collectionGroup,
+  doc,
+  getDocs,
+  limit,
+  query,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -11,12 +21,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantLoading, setTenantLoading] = useState(false);
+  const [autoDetecting, setAutoDetecting] = useState(false);
+  const [autoDetectChecked, setAutoDetectChecked] = useState(false);
 
   useEffect(() => {
     let active = true;
     if (!user) {
       setTenantId(null);
       setTenantLoading(false);
+      setAutoDetectChecked(false);
       return;
     }
     setTenantLoading(true);
@@ -45,10 +58,75 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   useEffect(() => {
-    if (!tenantLoading && user && !tenantId && !pathname.startsWith("/tenants")) {
+    if (!user) return;
+    const storedTenantId =
+      localStorage.getItem("tenantId") ?? localStorage.getItem("rentaok:tenantId");
+    if (storedTenantId && !tenantId) {
+      setTenantId(storedTenantId);
+    }
+  }, [user, tenantId]);
+
+  useEffect(() => {
+    if (!user || tenantLoading || tenantId || autoDetecting || autoDetectChecked) {
+      return;
+    }
+    let active = true;
+    const detectTenant = async () => {
+      setAutoDetecting(true);
+      try {
+        const snap = await getDocs(
+          query(collectionGroup(db, "contracts"), limit(1))
+        );
+        if (!active) return;
+        if (!snap.empty) {
+          const path = snap.docs[0].ref.path;
+          const match = path.match(/^tenants\/([^/]+)\/contracts\//);
+          const detectedTenantId = match?.[1] ?? null;
+          if (detectedTenantId) {
+            localStorage.setItem("tenantId", detectedTenantId);
+            localStorage.setItem("rentaok:tenantId", detectedTenantId);
+            setTenantId(detectedTenantId);
+            await setDoc(
+              doc(db, "tenants", detectedTenantId),
+              { updatedAt: serverTimestamp() },
+              { merge: true }
+            );
+          }
+        }
+      } finally {
+        if (active) {
+          setAutoDetecting(false);
+          setAutoDetectChecked(true);
+        }
+      }
+    };
+
+    detectTenant();
+    return () => {
+      active = false;
+    };
+  }, [user, tenantLoading, tenantId, autoDetecting, autoDetectChecked]);
+
+  useEffect(() => {
+    if (
+      !tenantLoading &&
+      !autoDetecting &&
+      autoDetectChecked &&
+      user &&
+      !tenantId &&
+      !pathname.startsWith("/tenants")
+    ) {
       router.replace("/tenants");
     }
-  }, [tenantLoading, user, tenantId, pathname, router]);
+  }, [
+    tenantLoading,
+    autoDetecting,
+    autoDetectChecked,
+    user,
+    tenantId,
+    pathname,
+    router,
+  ]);
 
   return (
     <div className="min-h-screen bg-bg text-text">
@@ -119,6 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </header>
           <main className="flex-1 px-6 py-8 pb-28">
             {!tenantLoading &&
+              (autoDetecting || autoDetectChecked) &&
               user &&
               !tenantId &&
               !pathname.startsWith("/tenants") && (

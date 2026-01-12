@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { listPeople, TenantPerson } from "@/lib/db/tenantsPeople";
+import { collectionGroup, getDocs, limit, query } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function TenantsPage() {
   const { user, loading } = useAuth();
@@ -14,6 +16,7 @@ export default function TenantsPage() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [detectedTenantId, setDetectedTenantId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
@@ -35,12 +38,23 @@ export default function TenantsPage() {
         const nextTenantId = profile?.tenantId ?? null;
         setTenantId(nextTenantId);
         if (!nextTenantId) {
-          router.replace("/onboarding");
+          const detectedSnap = await getDocs(
+            query(collectionGroup(db, "contracts"), limit(1))
+          );
+          if (!active) return;
+          if (!detectedSnap.empty) {
+            const path = detectedSnap.docs[0].ref.path;
+            const match = path.match(/^tenants\/([^/]+)\/contracts\//);
+            setDetectedTenantId(match?.[1] ?? null);
+          } else {
+            setDetectedTenantId(null);
+          }
           return;
         }
         const list = await listPeople(nextTenantId);
         if (!active) return;
         setPeople(list);
+        setDetectedTenantId(null);
       } catch (err: any) {
         if (!active) return;
         setPageError(err?.message ?? "No se pudieron cargar inquilinos.");
@@ -90,7 +104,20 @@ export default function TenantsPage() {
       )}
       {people.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-200 bg-white p-6 text-sm text-zinc-600">
-          No hay espacios cargados.
+          <div>No hay espacios cargados.</div>
+          {detectedTenantId && (
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem("tenantId", detectedTenantId);
+                localStorage.setItem("rentaok:tenantId", detectedTenantId);
+                router.push("/dashboard");
+              }}
+              className="mt-3 rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+            >
+              Usar espacio detectado
+            </button>
+          )}
         </div>
       ) : (
         <ul className="space-y-3">
