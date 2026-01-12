@@ -7,11 +7,13 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   collectionGroup,
   doc,
+  getDoc,
   getDocs,
   limit,
   query,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -30,41 +32,74 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setTenantId(null);
       setTenantLoading(false);
       setAutoDetectChecked(false);
+      setAutoDetecting(false);
       return;
     }
     setTenantLoading(true);
-    user
-      .getIdTokenResult()
-      .then((result) => {
+    setAutoDetecting(false);
+    setAutoDetectChecked(false);
+
+    const resolveTenant = async () => {
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
         if (!active) return;
-        const claimTenantId =
-          typeof result?.claims?.tenantId === "string"
-            ? result.claims.tenantId
+        const profileTenantId =
+          typeof userSnap.data()?.tenantId === "string"
+            ? userSnap.data()?.tenantId
             : null;
-        setTenantId(claimTenantId);
-      })
-      .catch(() => {
+        if (profileTenantId) {
+          setTenantId(profileTenantId);
+          localStorage.setItem("tenantId", profileTenantId);
+          localStorage.setItem("rentaok:tenantId", profileTenantId);
+          return;
+        }
+
+        setAutoDetecting(true);
+        const contractsSnap = await getDocs(
+          query(
+            collectionGroup(db, "contracts"),
+            where("createdByUid", "==", user.uid),
+            limit(1)
+          )
+        );
         if (!active) return;
-        setTenantId(null);
-      })
-      .finally(() => {
+        if (!contractsSnap.empty) {
+          const path = contractsSnap.docs[0].ref.path;
+          const match = path.match(/^tenants\/([^/]+)\/contracts\//);
+          const detectedTenantId = match?.[1] ?? null;
+          if (detectedTenantId) {
+            setTenantId(detectedTenantId);
+            localStorage.setItem("tenantId", detectedTenantId);
+            localStorage.setItem("rentaok:tenantId", detectedTenantId);
+            try {
+              await setDoc(
+                userRef,
+                { tenantId: detectedTenantId, updatedAt: serverTimestamp() },
+                { merge: true }
+              );
+            } catch (error) {
+              console.warn(
+                "No se pudo persistir tenantId en users/{uid}",
+                error
+              );
+            }
+          }
+        }
+      } finally {
         if (!active) return;
+        setAutoDetecting(false);
+        setAutoDetectChecked(true);
         setTenantLoading(false);
-      });
+      }
+    };
+
+    resolveTenant();
 
     return () => {
       active = false;
     };
   }, [user]);
-
-  useEffect(() => {
-    if (!user) return;
-    const storedTenantId =
-      localStorage.getItem("tenantId") ?? localStorage.getItem("rentaok:tenantId");
-    if (storedTenantId && !tenantId) {
-      setTenantId(storedTenantId);
-    }
-  }, [user, tenantId]);
 
   useEffect(() => {
     if (!user || !tenantId) return;
@@ -87,47 +122,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, [user, tenantId]);
-
-  useEffect(() => {
-    if (!user || tenantLoading || tenantId || autoDetecting || autoDetectChecked) {
-      return;
-    }
-    let active = true;
-    const detectTenant = async () => {
-      setAutoDetecting(true);
-      try {
-        const snap = await getDocs(
-          query(collectionGroup(db, "contracts"), limit(1))
-        );
-        if (!active) return;
-        if (!snap.empty) {
-          const path = snap.docs[0].ref.path;
-          const match = path.match(/^tenants\/([^/]+)\/contracts\//);
-          const detectedTenantId = match?.[1] ?? null;
-          if (detectedTenantId) {
-            localStorage.setItem("tenantId", detectedTenantId);
-            localStorage.setItem("rentaok:tenantId", detectedTenantId);
-            setTenantId(detectedTenantId);
-            await setDoc(
-              doc(db, "tenants", detectedTenantId),
-              { updatedAt: serverTimestamp() },
-              { merge: true }
-            );
-          }
-        }
-      } finally {
-        if (active) {
-          setAutoDetecting(false);
-          setAutoDetectChecked(true);
-        }
-      }
-    };
-
-    detectTenant();
-    return () => {
-      active = false;
-    };
-  }, [user, tenantLoading, tenantId, autoDetecting, autoDetectChecked]);
 
   useEffect(() => {
     if (
