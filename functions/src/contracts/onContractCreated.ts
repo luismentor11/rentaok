@@ -1,5 +1,5 @@
 import { getFirestore, Timestamp, FieldValue } from "firebase-admin/firestore";
-import * as functions from "firebase-functions";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 
 type ContractDates = {
   startDate?: string | Timestamp;
@@ -52,15 +52,17 @@ const getMonthPeriods = (startDate: Date, endDate: Date) => {
   return periods;
 };
 
-export const onContractCreated = functions.firestore
-  .document("tenants/{tenantId}/contracts/{contractId}")
-  .onCreate(async (snap: any, ctx: any) => {
+export const onContractCreated = onDocumentCreated(
+  "tenants/{tenantId}/contracts/{contractId}",
+  async (event) => {
     const db = getFirestore();
-    const data = snap.data() as ContractData | undefined;
-    const tenantId = ctx.params.tenantId;
-    const contractId = ctx.params.contractId;
+    const snap = event.data;
+    const params = event.params;
+    const data = snap?.data() as ContractData | undefined;
+    const tenantId = params?.tenantId;
+    const contractId = params?.contractId;
 
-    if (!data) {
+    if (!data || !tenantId || !contractId) {
       console.warn("[onContractCreated] Missing contract data", {
         tenantId,
         contractId,
@@ -132,4 +134,5 @@ export const onContractCreated = functions.firestore
       createdCount,
       skippedCount,
     });
-  });
+  }
+);
