@@ -166,7 +166,7 @@ export default function PaymentsPage() {
   return (
     <section className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-zinc-900">Pagos</h1>
+        <h1 className="text-2xl font-semibold text-zinc-900">Cánones</h1>
         <p className="text-sm text-zinc-600">
           Vista global de vencidos / por vencer / parciales
         </p>

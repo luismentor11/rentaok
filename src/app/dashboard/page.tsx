@@ -326,7 +326,7 @@ export default function OperationalDashboardPage() {
           </Link>
           <button
             type="button"
-            onClick={() => router.push("/payments")}
+            onClick={() => router.push("/canones")}
             className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface"
           >
             Registrar pago

@@ -76,7 +76,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Contratos
             </Link>
             <Link
-              href="/payments"
+              href="/canones"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
+            >
+              <span className="h-2 w-2 rounded-sm bg-muted" />
+              Cánones
+            </Link>
+            <Link
+              href="/pagos"
               className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
