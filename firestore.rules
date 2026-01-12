@@ -3,6 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isTenantMember(tenantId) {
       return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId;
     }
 
