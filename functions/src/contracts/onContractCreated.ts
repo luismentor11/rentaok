@@ -12,8 +12,6 @@ type ContractData = {
   rentAmount?: number;
 };
 
-const db = getFirestore();
-
 const toDate = (value?: string | Timestamp) => {
   if (!value) return null;
   if (value instanceof Timestamp) {
@@ -57,6 +55,7 @@ const getMonthPeriods = (startDate: Date, endDate: Date) => {
 export const onContractCreated = functions.firestore
   .document("tenants/{tenantId}/contracts/{contractId}")
   .onCreate(async (snap: any, ctx: any) => {
+    const db = getFirestore();
     const data = snap.data() as ContractData | undefined;
     const tenantId = ctx.params.tenantId;
     const contractId = ctx.params.contractId;

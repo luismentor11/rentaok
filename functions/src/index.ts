@@ -1,11 +1,11 @@
-import { initializeApp } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
 export { onContractCreated } from "./contracts/onContractCreated";
 export { recomputeInstallmentStatusDaily } from "./installments/recomputeInstallmentStatusDaily";
 
-initializeApp();
+if (getApps().length === 0) initializeApp();
 
 type ServiceType = "expensas" | "luz" | "gas" | "agua" | "abl" | "otro";
 type ServiceFrequency = "monthly" | "bimonthly" | "quarterly" | "eventual";
