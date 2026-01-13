@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
-import { getContract, ContractRecord } from "@/lib/db/contracts";
+import { getContract, updateContract, ContractRecord } from "@/lib/db/contracts";
 import {
   setInstallmentNotificationOverride,
   updateContractNotificationConfig,
@@ -206,6 +206,21 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [messageText, setMessageText] = useState("");
   const [messageSubmitting, setMessageSubmitting] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    dates: { startDate: "", endDate: "" },
+    dueDay: "",
+    rentAmount: "",
+    updateRule: { type: "MANUAL", periodMonths: "" },
+    parties: {
+      owner: { fullName: "", dni: "", email: "", whatsapp: "" },
+      tenant: { fullName: "", dni: "", email: "", whatsapp: "" },
+    },
+    guaranteeType: "OTRO",
+    guaranteeDetails: "",
+  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -527,7 +542,51 @@ export default function ContractDetailPage({ params }: PageProps) {
   const contractEndDate = contract.dates?.endDate ?? "-";
   const contractDueDay = contract.dueDay ?? "-";
   const contractRentAmount = contract.rentAmount ?? "-";
-  const contractGuaranteeType = contract.guaranteeType ?? "-";
+  const contractGuaranteeType = (contract.guaranteeType ?? "-") as string;
+  const contractGuaranteeDetails =
+    (contract as ContractRecordWithProperty & { guaranteeDetails?: string })
+      .guaranteeDetails ?? "";
+
+  const isGuarantorsGuarantee =
+    contractGuaranteeType === "GARANTES" ||
+    contractGuaranteeType === "GARANTES_PERSONAS";
+  const isCaucionGuarantee = contractGuaranteeType === "CAUCION";
+
+  const openEditModal = () => {
+    setEditError(null);
+    setEditForm({
+      dates: {
+        startDate: contract.dates?.startDate ?? "",
+        endDate: contract.dates?.endDate ?? "",
+      },
+      dueDay: String(contract.dueDay ?? ""),
+      rentAmount: String(contract.rentAmount ?? ""),
+      updateRule: {
+        type: contract.updateRule?.type ?? "MANUAL",
+        periodMonths: String(contract.updateRule?.periodMonths ?? ""),
+      },
+      parties: {
+        owner: {
+          fullName: contract.parties?.owner?.fullName ?? "",
+          dni: contract.parties?.owner?.dni ?? "",
+          email: contract.parties?.owner?.email ?? "",
+          whatsapp: contract.parties?.owner?.whatsapp ?? "",
+        },
+        tenant: {
+          fullName: contract.parties?.tenant?.fullName ?? "",
+          dni: contract.parties?.tenant?.dni ?? "",
+          email: contract.parties?.tenant?.email ?? "",
+          whatsapp: contract.parties?.tenant?.whatsapp ?? "",
+        },
+      },
+      guaranteeType:
+        contractGuaranteeType === "GARANTES"
+          ? "GARANTES_PERSONAS"
+          : contractGuaranteeType,
+      guaranteeDetails: contractGuaranteeDetails,
+    });
+    setEditModalOpen(true);
+  };
 
   const saveContractNotificationConfig = async (nextEnabled: boolean) => {
     if (!tenantId) return;
@@ -690,6 +749,7 @@ export default function ContractDetailPage({ params }: PageProps) {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
+                  onClick={openEditModal}
                   className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
                 >
                   Editar
@@ -793,7 +853,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <span className="font-medium text-zinc-900">Tipo:</span>{" "}
                 {contractGuaranteeType ?? "-"}
               </div>
-              {contractGuaranteeType === "GARANTES" ? (
+              {isGuarantorsGuarantee ? (
                 guarantors.length ? (
                   <div className="space-y-2">
                     {guarantors.map((guarantor, index) => (
@@ -818,10 +878,16 @@ export default function ContractDetailPage({ params }: PageProps) {
                 ) : (
                   <div className="text-xs text-zinc-500">(sin garantes)</div>
                 )
-              ) : contractGuaranteeType === "CAUCION" ? (
+              ) : isCaucionGuarantee ? (
                 <div className="text-sm text-zinc-600">
                   <span className="font-medium text-zinc-900">Detalle:</span>{" "}
-                  Deposito {contract.depositAmount ?? "-"}
+                  {contractGuaranteeDetails ||
+                    `Deposito ${contract.depositAmount ?? "-"}`}
+                </div>
+              ) : contractGuaranteeDetails ? (
+                <div className="text-sm text-zinc-600">
+                  <span className="font-medium text-zinc-900">Detalle:</span>{" "}
+                  {contractGuaranteeDetails}
                 </div>
               ) : (
                 <div className="text-xs text-zinc-500">Sin detalle</div>
@@ -2048,6 +2114,391 @@ export default function ContractDetailPage({ params }: PageProps) {
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {lateFeeSubmitting ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {editModalOpen && contract && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">
+                Editar contrato
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="text-sm text-zinc-500 hover:text-zinc-700"
+              >
+                Cerrar
+              </button>
+            </div>
+            {editError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {editError}
+              </div>
+            )}
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Inicio
+                </label>
+                <input
+                  type="date"
+                  value={editForm.dates.startDate}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      dates: { ...prev.dates, startDate: event.target.value },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Fin
+                </label>
+                <input
+                  type="date"
+                  value={editForm.dates.endDate}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      dates: { ...prev.dates, endDate: event.target.value },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Dia de vencimiento
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={editForm.dueDay}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      dueDay: event.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Canon/Mes
+                </label>
+                <input
+                  type="number"
+                  value={editForm.rentAmount}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      rentAmount: event.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Regla de actualizacion
+                </label>
+                <select
+                  value={editForm.updateRule.type}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      updateRule: {
+                        ...prev.updateRule,
+                        type: event.target.value,
+                      },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                >
+                  <option value="IPC">IPC</option>
+                  <option value="ICL">ICL</option>
+                  <option value="FIJO">Fijo</option>
+                  <option value="MANUAL">Manual</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Periodo (meses)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editForm.updateRule.periodMonths}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      updateRule: {
+                        ...prev.updateRule,
+                        periodMonths: event.target.value,
+                      },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Propietario
+                </label>
+                <input
+                  type="text"
+                  value={editForm.parties.owner.fullName}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      parties: {
+                        ...prev.parties,
+                        owner: {
+                          ...prev.parties.owner,
+                          fullName: event.target.value,
+                        },
+                      },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                  placeholder="Nombre completo"
+                />
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <input
+                    type="text"
+                    value={editForm.parties.owner.dni}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        parties: {
+                          ...prev.parties,
+                          owner: {
+                            ...prev.parties.owner,
+                            dni: event.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                    placeholder="DNI"
+                  />
+                  <input
+                    type="text"
+                    value={editForm.parties.owner.whatsapp}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        parties: {
+                          ...prev.parties,
+                          owner: {
+                            ...prev.parties.owner,
+                            whatsapp: event.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                    placeholder="WhatsApp"
+                  />
+                  <input
+                    type="email"
+                    value={editForm.parties.owner.email}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        parties: {
+                          ...prev.parties,
+                          owner: {
+                            ...prev.parties.owner,
+                            email: event.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900 md:col-span-2"
+                    placeholder="Email"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Locatario
+                </label>
+                <input
+                  type="text"
+                  value={editForm.parties.tenant.fullName}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      parties: {
+                        ...prev.parties,
+                        tenant: {
+                          ...prev.parties.tenant,
+                          fullName: event.target.value,
+                        },
+                      },
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                  placeholder="Nombre completo"
+                />
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <input
+                    type="text"
+                    value={editForm.parties.tenant.dni}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        parties: {
+                          ...prev.parties,
+                          tenant: {
+                            ...prev.parties.tenant,
+                            dni: event.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                    placeholder="DNI"
+                  />
+                  <input
+                    type="text"
+                    value={editForm.parties.tenant.whatsapp}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        parties: {
+                          ...prev.parties,
+                          tenant: {
+                            ...prev.parties.tenant,
+                            whatsapp: event.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                    placeholder="WhatsApp"
+                  />
+                  <input
+                    type="email"
+                    value={editForm.parties.tenant.email}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        parties: {
+                          ...prev.parties,
+                          tenant: {
+                            ...prev.parties.tenant,
+                            email: event.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900 md:col-span-2"
+                    placeholder="Email"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Tipo de garantia
+                </label>
+                <select
+                  value={editForm.guaranteeType}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      guaranteeType: event.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                >
+                  <option value="GARANTES_PERSONAS">Garantes</option>
+                  <option value="CAUCION">Caucion</option>
+                  <option value="CONVENIO_DESALOJO">Convenio desalojo</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700">
+                  Detalle de garantia
+                </label>
+                <input
+                  type="text"
+                  value={editForm.guaranteeDetails}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      guaranteeDetails: event.target.value,
+                    }))
+                  }
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                  placeholder="Detalle"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                disabled={editSaving}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={editSaving}
+                onClick={async () => {
+                  if (!tenantId || !contract) return;
+                  setEditSaving(true);
+                  setEditError(null);
+                  try {
+                    const payload = {
+                      dates: {
+                        startDate: editForm.dates.startDate,
+                        endDate: editForm.dates.endDate,
+                      },
+                      dueDay: Number(editForm.dueDay) || 0,
+                      rentAmount: Number(editForm.rentAmount) || 0,
+                      updateRule: {
+                        type: editForm.updateRule.type,
+                        periodMonths: Number(editForm.updateRule.periodMonths) || 0,
+                      },
+                      parties: {
+                        owner: { ...editForm.parties.owner },
+                        tenant: { ...editForm.parties.tenant },
+                      },
+                      guaranteeType: editForm.guaranteeType,
+                      guaranteeDetails: editForm.guaranteeDetails,
+                    } as Partial<ContractRecordWithProperty>;
+                    await updateContract(tenantId, contract.id, payload);
+                    setContract((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            ...payload,
+                          }
+                        : prev
+                    );
+                    setEditModalOpen(false);
+                  } catch (err) {
+                    setEditError("No se pudo guardar el contrato.");
+                  } finally {
+                    setEditSaving(false);
+                  }
+                }}
+                className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
+                {editSaving ? "Guardando..." : "Guardar"}
               </button>
             </div>
           </div>
