@@ -163,11 +163,7 @@ export default function CanonesPage() {
       setInstallmentsLoading(true);
       setInstallmentsError(null);
       try {
-        const nextInstallments = await fetchInstallments(
-          tenantId,
-          monthFilter,
-          statusFilter
-        );
+        const nextInstallments = await fetchInstallments(tenantId, monthFilter);
         if (!active) return;
         setInstallments(nextInstallments);
       } catch (err: any) {
@@ -234,8 +230,12 @@ export default function CanonesPage() {
   const filteredInstallments = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
     const ownerSearch = ownerFilter.trim().toLowerCase();
-    if (!search && !ownerSearch) return installments;
-    return installments.filter((installment) => {
+    const baseList =
+      statusFilter === "ALL"
+        ? installments
+        : installments.filter((installment) => installment.status === statusFilter);
+    if (!search && !ownerSearch) return baseList;
+    return baseList.filter((installment) => {
       const contract = installment.contractId
         ? contractsById[installment.contractId]
         : undefined;
@@ -252,7 +252,7 @@ export default function CanonesPage() {
       const textMatch = search ? haystack.includes(search) : true;
       return ownerMatch && textMatch;
     });
-  }, [installments, contractsById, searchTerm, ownerFilter]);
+  }, [installments, contractsById, searchTerm, ownerFilter, statusFilter]);
 
   const selectedInstallment = useMemo(() => {
     if (!selectedInstallmentId) return null;
@@ -282,11 +282,7 @@ export default function CanonesPage() {
     setPaymentNote("");
   };
 
-  const fetchInstallments = async (
-    tenant: string,
-    monthValue: string,
-    statusValue: (typeof statusOptions)[number]["value"]
-  ) => {
+  const fetchInstallments = async (tenant: string, monthValue: string) => {
     const { start, end } = getMonthRange(monthValue);
     const constraints = [
       where("dueDate", ">=", Timestamp.fromDate(start)),
@@ -294,9 +290,6 @@ export default function CanonesPage() {
       orderBy("dueDate", "asc"),
       limit(400),
     ];
-    if (statusValue !== "ALL") {
-      constraints.unshift(where("status", "==", statusValue));
-    }
     const installmentsRef = collection(db, "tenants", tenant, "installments");
     const q = query(installmentsRef, ...constraints);
     const snap = await getDocs(q);
@@ -690,8 +683,7 @@ export default function CanonesPage() {
                         await loadDetails(selectedInstallment);
                         const nextInstallments = await fetchInstallments(
                           tenantId,
-                          monthFilter,
-                          statusFilter
+                          monthFilter
                         );
                         setInstallments(nextInstallments);
                       } catch (err: any) {
@@ -810,8 +802,7 @@ export default function CanonesPage() {
                         await loadDetails(selectedInstallment);
                         const nextInstallments = await fetchInstallments(
                           tenantId,
-                          monthFilter,
-                          statusFilter
+                          monthFilter
                         );
                         setInstallments(nextInstallments);
                       } catch (err: any) {
