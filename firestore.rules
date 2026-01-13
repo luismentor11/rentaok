@@ -21,6 +21,10 @@ service cloud.firestore {
       }
     }
 
+    match /tenants/{tenantId}/{document=**} {
+      allow read, write: if isTenantMember(tenantId);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
