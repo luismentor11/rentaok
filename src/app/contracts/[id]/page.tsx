@@ -306,11 +306,7 @@ export default function ContractDetailPage({ params }: PageProps) {
       );
     } catch (err: any) {
       console.error("ContractTab:Pagos ERROR", err);
-      const errorText =
-        err && typeof err === "object"
-          ? err.stack || err.message || JSON.stringify(err)
-          : String(err);
-      setInstallmentsErrorText(errorText);
+      setInstallmentsErrorText("Ocurrio un error. Intenta de nuevo.");
       setInstallments([]);
     } finally {
       setInstallmentsLoading(false);
@@ -923,16 +919,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                   try {
                     await generateInstallmentsForContract(tenantId, contract);
                     await loadInstallments(tenantId, contract.id);
-                  } catch (err: any) {
-                    console.error("ContractTab:Pagos ERROR", err);
-                    const errorText =
-                      err && typeof err === "object"
-                        ? err.stack || err.message || JSON.stringify(err)
-                        : String(err);
-                    setInstallmentsErrorText(errorText);
-                  } finally {
-                    setInstallmentsLoading(false);
-                  }
+                } catch (err: any) {
+                  console.error("ContractTab:Pagos ERROR", err);
+                  setInstallmentsErrorText(
+                    "Ocurrio un error. Intenta de nuevo."
+                  );
+                } finally {
+                  setInstallmentsLoading(false);
+                }
                 }}
                 className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
               >
@@ -941,22 +935,7 @@ export default function ContractDetailPage({ params }: PageProps) {
             </div>
             {installmentsErrorText && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                <div>
-                  Error real: {installmentsErrorText.slice(0, 300)}
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(installmentsErrorText);
-                    } catch (err) {
-                      console.error("No se pudo copiar el error", err);
-                    }
-                  }}
-                  className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
-                >
-                  Copiar error
-                </button>
+                Ocurrio un error. Intenta de nuevo.
               </div>
             )}
             {installmentsLoading ? (
@@ -1051,9 +1030,9 @@ export default function ContractDetailPage({ params }: PageProps) {
                                   installment.contractId
                                 );
                               } catch (err: any) {
+                                console.error("ContractTab:Pagos ERROR", err);
                                 setInstallmentsErrorText(
-                                  err?.message ??
-                                    "No se pudo actualizar la notificacion."
+                                  "Ocurrio un error. Intenta de nuevo."
                                 );
                               } finally {
                                 setInstallmentActions((prev) => ({
@@ -1125,9 +1104,9 @@ export default function ContractDetailPage({ params }: PageProps) {
                                 installment.contractId
                               );
                             } catch (err: any) {
+                              console.error("ContractTab:Pagos ERROR", err);
                               setInstallmentsErrorText(
-                                err?.message ??
-                                  "No se pudo marcar como pagada."
+                                "Ocurrio un error. Intenta de nuevo."
                               );
                             } finally {
                               setInstallmentActions((prev) => ({
