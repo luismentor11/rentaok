@@ -56,7 +56,9 @@ export default function ContractsPage() {
         setMoreError(null);
         const page = await listContractsPage(nextTenantId, { pageSize: 20 });
         if (!active) return;
-        setContracts(page.items);
+        setContracts(
+          page.items.filter((item) => (item as { status?: string }).status !== "deleted")
+        );
         setCursor(page.nextCursor);
         setHasMore(!!page.nextCursor);
       } catch (err: any) {
@@ -172,7 +174,10 @@ export default function ContractsPage() {
                 pageSize: 20,
                 cursor,
               });
-              setContracts((prev) => [...prev, ...page.items]);
+              const nextItems = page.items.filter(
+                (item) => (item as { status?: string }).status !== "deleted"
+              );
+              setContracts((prev) => [...prev, ...nextItems]);
               setCursor(page.nextCursor);
               setHasMore(!!page.nextCursor);
             } catch (err: any) {

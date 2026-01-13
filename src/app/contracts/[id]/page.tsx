@@ -221,6 +221,9 @@ export default function ContractDetailPage({ params }: PageProps) {
     guaranteeType: "OTRO",
     guaranteeDetails: "",
   });
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -588,6 +591,11 @@ export default function ContractDetailPage({ params }: PageProps) {
     setEditModalOpen(true);
   };
 
+  const openDeleteModal = () => {
+    setDeleteError(null);
+    setDeleteModalOpen(true);
+  };
+
   const saveContractNotificationConfig = async (nextEnabled: boolean) => {
     if (!tenantId) return;
     setContractNotificationSaving(true);
@@ -757,6 +765,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <button
                   type="button"
                   className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                  onClick={openDeleteModal}
                 >
                   Eliminar
                 </button>
@@ -2499,6 +2508,67 @@ export default function ContractDetailPage({ params }: PageProps) {
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {editSaving ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deleteModalOpen && contract && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-zinc-900">
+                Eliminar contrato
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                className="text-sm text-zinc-500 hover:text-zinc-700"
+              >
+                Cerrar
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-zinc-600">
+              Esto eliminará el contrato y lo ocultará del listado. Podés
+              restaurarlo desde la base si hace falta.
+            </p>
+            {deleteError && (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {deleteError}
+              </div>
+            )}
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deleteSaving}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deleteSaving}
+                onClick={async () => {
+                  if (!tenantId || !user) return;
+                  setDeleteSaving(true);
+                  setDeleteError(null);
+                  try {
+                    await updateContract(tenantId, contract.id, {
+                      status: "deleted",
+                      deletedAt: serverTimestamp(),
+                      deletedByUid: user.uid,
+                    } as Partial<ContractRecordWithProperty>);
+                    router.replace("/contracts");
+                  } catch (err) {
+                    setDeleteError("No se pudo eliminar el contrato.");
+                  } finally {
+                    setDeleteSaving(false);
+                  }
+                }}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+              >
+                {deleteSaving ? "Eliminando..." : "Eliminar"}
               </button>
             </div>
           </div>
