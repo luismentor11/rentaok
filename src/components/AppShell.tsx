@@ -25,6 +25,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [tenantLoading, setTenantLoading] = useState(false);
   const [autoDetecting, setAutoDetecting] = useState(false);
   const [autoDetectChecked, setAutoDetectChecked] = useState(false);
+  const [officeName, setOfficeName] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -124,6 +125,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [user, tenantId]);
 
   useEffect(() => {
+    if (!tenantId) {
+      setOfficeName(null);
+      return;
+    }
+    let active = true;
+    const loadOfficeName = async () => {
+      try {
+        const tenantRef = doc(db, "tenants", tenantId);
+        const snap = await getDoc(tenantRef);
+        if (!active) return;
+        const nextName =
+          typeof snap.data()?.displayName === "string"
+            ? snap.data()?.displayName
+            : null;
+        setOfficeName(nextName);
+      } catch {
+        if (!active) return;
+        setOfficeName(null);
+      }
+    };
+
+    loadOfficeName();
+    return () => {
+      active = false;
+    };
+  }, [tenantId]);
+
+  useEffect(() => {
     if (
       !tenantLoading &&
       !autoDetecting &&
@@ -196,8 +225,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur">
             <div className="flex items-center justify-between px-6 py-4 text-sm text-text-muted">
-              <span>Panel operativo</span>
+              <span>
+                Panel operativo —{" "}
+                {officeName ??
+                  (tenantId ? `Oficina ${tenantId.slice(0, 6)}` : "Oficina")}
+              </span>
               <div className="flex items-center gap-3">
+                <div className="hidden items-center gap-2 text-xs text-text-muted md:flex">
+                  <Link
+                    href="/contracts/new"
+                    className="rounded-full border border-border px-2 py-1 hover:bg-surface-alt"
+                  >
+                    Nuevo contrato
+                  </Link>
+                  <Link
+                    href="/canones"
+                    className="rounded-full border border-border px-2 py-1 hover:bg-surface-alt"
+                  >
+                    Canon/Mes
+                  </Link>
+                  <Link
+                    href="/pagos"
+                    className="rounded-full border border-border px-2 py-1 hover:bg-surface-alt"
+                  >
+                    Pagos
+                  </Link>
+                </div>
+                <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-text-muted">
+                  {typeof window !== "undefined" &&
+                  (window.location.hostname.includes("localhost") ||
+                    window.location.hostname.includes("127.0.0.1"))
+                    ? "DEV"
+                    : "PROD"}
+                </span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-alt text-xs font-semibold text-text">
+                  {(officeName ?? tenantId ?? "OF")
+                    .split(" ")
+                    .filter(Boolean)
+                    .map((part) => part[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </span>
                 <span className="hidden text-xs text-text-muted md:block">
                   {user?.email ?? ""}
                 </span>
