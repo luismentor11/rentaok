@@ -93,9 +93,12 @@ export type InstallmentPayment = {
   paidAt: Timestamp;
   method: PaymentMethod;
   collectedBy: string;
+  createdByUid?: string;
   withoutReceipt: boolean;
   receipt?: PaymentReceipt;
   note?: string;
+  period?: string;
+  dueDate?: Timestamp;
   metadata?: {
     overpay?: number;
   };
@@ -627,7 +630,10 @@ export async function registerInstallmentPayment(
       paidAt: Timestamp.fromDate(paidAtValue),
       method: input.method,
       collectedBy: input.collectedBy,
+      createdByUid: input.collectedBy,
       withoutReceipt: input.withoutReceipt,
+      period: data.period,
+      dueDate: data.dueDate,
       ...(!input.withoutReceipt && input.receipt ? { receipt: input.receipt } : {}),
       ...(noteValue ? { note: noteValue } : {}),
       ...(overpay > 0 ? { metadata: { overpay } } : {}),
