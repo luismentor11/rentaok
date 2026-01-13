@@ -7,7 +7,6 @@ import {
   deleteField,
   doc,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -60,6 +59,19 @@ const getServiceStatusTone = (status: string) => {
 const formatServiceDueDate = (value: ServiceRecord["dueDate"]) => {
   const date = toDateSafe(value);
   return date ? date.toLocaleDateString() : "-";
+};
+
+const sortByDueDate = (items: ServiceRecord[]) => {
+  return [...items].sort((a, b) => {
+    const dateA = toDateSafe(a.dueDate);
+    const dateB = toDateSafe(b.dueDate);
+    if (dateA && dateB) {
+      return dateA.getTime() - dateB.getTime();
+    }
+    if (dateA) return -1;
+    if (dateB) return 1;
+    return 0;
+  });
 };
 
 const statusOptions = [
@@ -138,8 +150,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
     const q = query(
       servicesRef,
       where("contractId", "==", contractId),
-      where("period", "==", period),
-      orderBy("dueDate", "asc")
+      where("period", "==", period)
     );
 
     const unsubscribe = onSnapshot(
@@ -149,16 +160,12 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
           id: docSnap.id,
           ...(docSnap.data() as Omit<ServiceRecord, "id">),
         }));
-        setServices(next);
+        setServices(sortByDueDate(next));
         setLoading(false);
       },
       (err) => {
         console.error("ContractTab:Servicios ERROR", err);
-        const nextErrorText =
-          err && typeof err === "object"
-            ? err.stack || err.message || JSON.stringify(err)
-            : String(err);
-        setErrorText(nextErrorText);
+        setErrorText("Ocurrió un error. Intentá de nuevo.");
         setLoading(false);
       }
     );
@@ -229,21 +236,8 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
         </div>
       )}
       {errorText && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <div>Error real: {errorText.slice(0, 300)}</div>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(errorText);
-              } catch (err) {
-                console.error("No se pudo copiar el error", err);
-              }
-            }}
-            className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
-          >
-            Copiar error
-          </button>
+        <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+          Ocurrió un error. Intentá de nuevo.
         </div>
       )}
       {toastMessage && (

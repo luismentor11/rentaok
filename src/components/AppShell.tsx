@@ -181,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <img
               src="/brand/logo.png"
               alt="RentaOK"
-              className="h-20 w-auto"
+              className="h-32 w-auto"
             />
           </Link>
           <div className="mt-6 space-y-2 text-sm font-medium text-text-muted">
