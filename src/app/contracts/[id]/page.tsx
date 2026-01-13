@@ -53,11 +53,9 @@ import { db } from "@/lib/firebase";
 
 const tabOptions = [
   { key: "resumen", label: "Resumen" },
-  { key: "partes", label: "Partes" },
-  { key: "pagos", label: "Pagos" },
+  { key: "pagos", label: "Canon/Mes" },
   { key: "servicios", label: "Servicios" },
   { key: "documentos", label: "Documentos" },
-  { key: "alertas", label: "Alertas" },
   { key: "actividad", label: "Actividad" },
 ] as const;
 
@@ -679,58 +677,93 @@ export default function ContractDetailPage({ params }: PageProps) {
       <div className="rounded-lg border border-zinc-200 bg-white p-4">
         {tab === "resumen" && (
           <div className="space-y-6">
-            <div className="space-y-1">
-              <div className="text-sm text-zinc-500">
-                Contrato {contract.id ?? "-"}
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="text-sm text-zinc-500">
+                  Contrato {contract.id ?? "-"}
+                </div>
+                <h1 className="text-2xl font-semibold text-zinc-900">
+                  {contractTitle}
+                </h1>
+                <p className="text-sm text-zinc-600">{contractAddress}</p>
               </div>
-              <h1 className="text-2xl font-semibold text-zinc-900">
-                {contractTitle}
-              </h1>
-              <p className="text-sm text-zinc-600">{contractAddress}</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
 
-            <div className="rounded-lg border border-zinc-200 bg-white p-4">
-              <div className="flex flex-wrap items-center gap-4 text-sm text-zinc-600">
-                <div>
-                  <span className="font-medium text-zinc-900">Inicio:</span>{" "}
-                  {contractStartDate}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+                <div className="text-xs font-semibold text-zinc-500">
+                  Datos del contrato
                 </div>
-                <div>
-                  <span className="font-medium text-zinc-900">Fin:</span>{" "}
-                  {contractEndDate}
+                <div className="grid gap-2 text-sm text-zinc-600">
+                  <div>
+                    <span className="font-medium text-zinc-900">Inicio:</span>{" "}
+                    {contractStartDate}
+                  </div>
+                  <div>
+                    <span className="font-medium text-zinc-900">Fin:</span>{" "}
+                    {contractEndDate}
+                  </div>
+                  <div>
+                    <span className="font-medium text-zinc-900">Vence:</span>{" "}
+                    dia {contractDueDay}
+                  </div>
+                  <div>
+                    <span className="font-medium text-zinc-900">Canon/Mes:</span>{" "}
+                    {contractRentAmount}
+                  </div>
+                  <div>
+                    <span className="font-medium text-zinc-900">
+                      Actualizacion:
+                    </span>{" "}
+                    {contract.updateRule?.type ?? "-"}
+                    {contract.updateRule?.periodMonths
+                      ? ` cada ${contract.updateRule.periodMonths} meses`
+                      : ""}
+                  </div>
+                  <div>
+                    <span className="font-medium text-zinc-900">Deposito:</span>{" "}
+                    {contract.depositAmount ?? "-"}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium text-zinc-900">Vence:</span> dia{" "}
-                  {contractDueDay}
-                </div>
-                <div>
-                  <span className="font-medium text-zinc-900">Monto:</span>{" "}
-                  {contractRentAmount}
-                </div>
-                <div>
-                  <span className="font-medium text-zinc-900">Garantia:</span>{" "}
-                  {contractGuaranteeType}
+                <div className="text-sm">
+                  {contract.pdf?.downloadUrl ? (
+                    <Link
+                      href={contract.pdf.downloadUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-zinc-700 hover:text-zinc-900"
+                    >
+                      Ver PDF
+                    </Link>
+                  ) : (
+                    <span className="text-zinc-500">Sin PDF</span>
+                  )}
                 </div>
               </div>
-              <div className="mt-3 text-sm">
-                {contract.pdf?.downloadUrl ? (
-                  <Link
-                    href={contract.pdf.downloadUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-zinc-700 hover:text-zinc-900"
-                  >
-                    Ver PDF
-                  </Link>
-                ) : (
-                  <span className="text-zinc-500">Sin PDF</span>
-                )}
+
+              <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-2">
+                <div className="text-xs font-semibold text-zinc-500">Propiedad</div>
+                <div className="text-sm font-medium text-zinc-900">
+                  {contractTitle}
+                </div>
+                <div className="text-xs text-zinc-500">{contractAddress}</div>
               </div>
             </div>
-          </div>
-        )}
-        {tab === "partes" && (
-          <div className="space-y-4">
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-lg border border-zinc-200 bg-white p-4">
                 <div className="text-xs font-semibold text-zinc-500">Locatario</div>
@@ -753,25 +786,46 @@ export default function ContractDetailPage({ params }: PageProps) {
                 </div>
               </div>
             </div>
-            <div className="space-y-3">
-              {guarantors.map((guarantor, index) => (
-                <div
-                  key={`${guarantor.fullName ?? "garante"}-${index}`}
-                  className="rounded-lg border border-zinc-200 p-3"
-                >
-                  <div className="text-sm font-medium text-zinc-900">
-                    {guarantor.fullName ?? "-"}
+
+            <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
+              <div className="text-xs font-semibold text-zinc-500">Garantia</div>
+              <div className="text-sm text-zinc-600">
+                <span className="font-medium text-zinc-900">Tipo:</span>{" "}
+                {contractGuaranteeType ?? "-"}
+              </div>
+              {contractGuaranteeType === "GARANTES" ? (
+                guarantors.length ? (
+                  <div className="space-y-2">
+                    {guarantors.map((guarantor, index) => (
+                      <div
+                        key={`${guarantor.fullName ?? "garante"}-${index}`}
+                        className="rounded-lg border border-zinc-200 p-3"
+                      >
+                        <div className="text-sm font-medium text-zinc-900">
+                          {guarantor.fullName ?? "-"}
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          {guarantor.dni ? `DNI: ${guarantor.dni}` : "DNI: -"} |{" "}
+                          {guarantor.address ?? "-"}
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          {guarantor.email ?? "Sin email"} |{" "}
+                          {guarantor.whatsapp ?? "Sin WhatsApp"}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-xs text-zinc-500">
-                    {guarantor.dni ? `DNI: ${guarantor.dni}` : "DNI: -"} |{" "}
-                    {guarantor.address ?? "-"}
-                  </div>
-                  <div className="text-xs text-zinc-500">
-                    {guarantor.email ?? "Sin email"} |{" "}
-                    {guarantor.whatsapp ?? "Sin WhatsApp"}
-                  </div>
+                ) : (
+                  <div className="text-xs text-zinc-500">(sin garantes)</div>
+                )
+              ) : contractGuaranteeType === "CAUCION" ? (
+                <div className="text-sm text-zinc-600">
+                  <span className="font-medium text-zinc-900">Detalle:</span>{" "}
+                  Deposito {contract.depositAmount ?? "-"}
                 </div>
-              ))}
+              ) : (
+                <div className="text-xs text-zinc-500">Sin detalle</div>
+              )}
             </div>
           </div>
         )}
@@ -1138,489 +1192,6 @@ export default function ContractDetailPage({ params }: PageProps) {
         )}
         {tab === "servicios" && (
           <ServicesTab contractId={contract.id} role={userRole ?? "owner"} />
-        )}
-        {tab === "alertas" && (
-          <div className="space-y-4 text-sm text-zinc-600">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium text-zinc-900">
-                  Activar notificaciones (solo inquilino)
-                </div>
-                <div className="text-xs text-zinc-500">
-                  Se aplica a todas las cuotas salvo override.
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-xs text-zinc-600">
-                <input
-                  type="checkbox"
-                  checked={contractNotificationsEnabled}
-                  disabled={contractNotificationSaving}
-                  onChange={(event) =>
-                    saveContractNotificationConfig(event.target.checked)
-                  }
-                />
-                {contractNotificationSaving
-                  ? "Guardando..."
-                  : contractNotificationsEnabled
-                    ? "Activo"
-                    : "Inactivo"}
-              </label>
-            </div>
-            {contractNotificationError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Ocurrió un error. Intentá de nuevo.
-              </div>
-            )}
-            {notificationSendError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Ocurrió un error. Intentá de nuevo.
-              </div>
-            )}
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-              <div className="text-xs font-semibold text-zinc-500">
-                Destinatarios detectados
-              </div>
-              <div className="mt-2 text-xs text-zinc-600">
-                Email: {tenantEmail || "(sin email)"}
-              </div>
-              <div className="text-xs text-zinc-600">
-                WhatsApp: {tenantWhatsapp || "(sin whatsapp)"}
-              </div>
-            </div>
-            <div className="rounded-md border border-zinc-200 bg-white p-3">
-              <div className="text-xs font-semibold text-zinc-700">
-                Para enviar hoy
-              </div>
-              {!contractNotificationsEnabled ? (
-                <div className="mt-2 text-xs text-zinc-500">
-                  El contrato tiene notificaciones desactivadas.
-                </div>
-              ) : notificationsDueToday.length === 0 ? (
-                <div className="mt-2 rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-                  No hay alertas para mostrar.
-                </div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {notificationsDueToday.map(({ installment, dueType, message }) => {
-                    const label =
-                      dueType === "PRE_DUE_5" ? "5 dias antes" : "1 dia después";
-                    const whatsappNumber = tenantWhatsapp
-                      ? tenantWhatsapp.replace(/\D/g, "")
-                      : "";
-                    const emailHref = tenantEmail
-                      ? `mailto:${tenantEmail}?subject=${encodeURIComponent(
-                          message.subject
-                        )}&body=${encodeURIComponent(message.body)}`
-                      : "";
-                    const whatsappHref = whatsappNumber
-                      ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
-                          message.whatsappText
-                        )}`
-                      : "";
-                    const tenantEmailSent = tenantEmail
-                      ? hasNotificationSent({
-                          installment,
-                          type: dueType,
-                          channel: "email",
-                          audience: "TENANT",
-                          recipient: tenantEmail,
-                          dayKey: todayDayKey,
-                        })
-                      : false;
-                    const tenantWhatsappSent = whatsappNumber
-                      ? hasNotificationSent({
-                          installment,
-                          type: dueType,
-                          channel: "whatsapp",
-                          audience: "TENANT",
-                          recipient: whatsappNumber,
-                          dayKey: todayDayKey,
-                        })
-                      : false;
-
-                    return (
-                      <div
-                        key={`${installment.id}-${dueType}`}
-                        className="rounded-md border border-zinc-200 p-3 text-xs text-zinc-600"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium text-zinc-900">
-                            Periodo {installment.period}
-                          </div>
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                            {label}
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[11px] text-zinc-500">
-                          Vence: {formatDueDate(installment.dueDate)} | Estado:{" "}
-                          {installment.status}
-                        </div>
-                        <details className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-1">
-                          <summary className="cursor-pointer text-[11px] font-medium text-zinc-600">
-                            Preview del mensaje
-                          </summary>
-                          <div className="mt-2 space-y-2 text-[11px] text-zinc-600">
-                            <div>
-                              <div className="font-semibold text-zinc-700">
-                                Email
-                              </div>
-                              <div className="whitespace-pre-wrap">
-                                Asunto: {message.subject}
-                                {"\n\n"}
-                                {message.body}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="font-semibold text-zinc-700">
-                                WhatsApp
-                              </div>
-                              <div className="whitespace-pre-wrap">
-                                {message.whatsappText}
-                              </div>
-                            </div>
-                          </div>
-                        </details>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {whatsappNumber ? (
-                              <button
-                                type="button"
-                                disabled={tenantWhatsappSent}
-                                onClick={async () => {
-                                  if (!tenantId) return;
-                                  if (tenantWhatsappSent) return;
-                                  setNotificationSendError(null);
-                                  try {
-                                    await logNotificationSent(
-                                      tenantId,
-                                      installment.id,
-                                      {
-                                        type: dueType,
-                                        channel: "whatsapp",
-                                        audience: "TENANT",
-                                        recipient: whatsappNumber,
-                                      }
-                                    );
-                                    window.open(
-                                      whatsappHref,
-                                      "_blank",
-                                      "noopener,noreferrer"
-                                    );
-                                    await loadInstallments(
-                                      tenantId,
-                                      installment.contractId
-                                    );
-                                  } catch (err: any) {
-                                    setNotificationSendError(
-                                      err?.message ??
-                                        "No se pudo registrar el envio."
-                                    );
-                                  }
-                                }}
-                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
-                              >
-                                WhatsApp
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                              >
-                                WhatsApp (sin numero)
-                              </button>
-                            )}
-                            {tenantWhatsappSent && (
-                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
-                                Ya enviado hoy
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            {tenantEmail ? (
-                              <button
-                                type="button"
-                                disabled={tenantEmailSent}
-                                onClick={async () => {
-                                  if (!tenantId) return;
-                                  if (tenantEmailSent) return;
-                                  setNotificationSendError(null);
-                                  try {
-                                    await logNotificationSent(
-                                      tenantId,
-                                      installment.id,
-                                      {
-                                        type: dueType,
-                                        channel: "email",
-                                        audience: "TENANT",
-                                        recipient: tenantEmail,
-                                      }
-                                    );
-                                    window.open(emailHref, "_blank");
-                                    await loadInstallments(
-                                      tenantId,
-                                      installment.contractId
-                                    );
-                                  } catch (err: any) {
-                                    setNotificationSendError(
-                                      err?.message ??
-                                        "No se pudo registrar el envio."
-                                    );
-                                  }
-                                }}
-                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
-                              >
-                                Email
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                disabled
-                                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                              >
-                                Email (sin email)
-                              </button>
-                            )}
-                            {tenantEmailSent && (
-                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
-                                Ya enviado hoy
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="rounded-md border border-zinc-200 bg-white p-3">
-              <div className="text-xs font-semibold text-zinc-700">
-                Escalamiento a garantes (dia +5)
-              </div>
-              {!contractNotificationsEnabled ? (
-                <div className="mt-2 text-xs text-zinc-500">
-                  El contrato tiene notificaciones desactivadas.
-                </div>
-              ) : guarantors.length === 0 ? (
-                <div className="mt-2 text-xs text-zinc-500">(sin garantes)</div>
-              ) : guarantorNotificationsDueToday.length === 0 ? (
-                <div className="mt-2 text-xs text-zinc-500">
-                  Sin cuotas para escalar hoy.
-                </div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {guarantorNotificationsDueToday.map(
-                    ({ installment, message }) => (
-                      <div
-                        key={`${installment.id}-guarantor`}
-                        className="rounded-md border border-zinc-200 p-3 text-xs text-zinc-600"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="font-medium text-zinc-900">
-                            Periodo {installment.period}
-                          </div>
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                            dia +5
-                          </span>
-                        </div>
-                        <div className="mt-1 text-[11px] text-zinc-500">
-                          Vence: {formatDueDate(installment.dueDate)} | Estado:{" "}
-                          {installment.status}
-                        </div>
-                        <details className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-2 py-1">
-                          <summary className="cursor-pointer text-[11px] font-medium text-zinc-600">
-                            Preview del mensaje
-                          </summary>
-                          <div className="mt-2 space-y-2 text-[11px] text-zinc-600">
-                            <div>
-                              <div className="font-semibold text-zinc-700">
-                                Email
-                              </div>
-                              <div className="whitespace-pre-wrap">
-                                Asunto: {message.subject}
-                                {"\n\n"}
-                                {message.body}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="font-semibold text-zinc-700">
-                                WhatsApp
-                              </div>
-                              <div className="whitespace-pre-wrap">
-                                {message.whatsappText}
-                              </div>
-                            </div>
-                          </div>
-                        </details>
-                        <div className="mt-3 space-y-2">
-                          {guarantors.map((guarantor, index) => {
-                            const guarantorEmail = guarantor.email?.trim();
-                            const guarantorWhatsapp = guarantor.whatsapp?.trim();
-                            const whatsappNumber = guarantorWhatsapp
-                              ? guarantorWhatsapp.replace(/\D/g, "")
-                              : "";
-                            const emailHref = guarantorEmail
-                              ? `mailto:${guarantorEmail}?subject=${encodeURIComponent(
-                                  message.subject
-                                )}&body=${encodeURIComponent(message.body)}`
-                              : "";
-                            const whatsappHref = whatsappNumber
-                              ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
-                                  message.whatsappText
-                                )}`
-                              : "";
-                            const guarantorEmailSent = guarantorEmail
-                              ? hasNotificationSent({
-                                  installment,
-                                  type: "GUARANTOR_DUE_5",
-                                  channel: "email",
-                                  audience: "GUARANTOR",
-                                  recipient: guarantorEmail,
-                                  dayKey: todayDayKey,
-                                })
-                              : false;
-                            const guarantorWhatsappSent = whatsappNumber
-                              ? hasNotificationSent({
-                                  installment,
-                                  type: "GUARANTOR_DUE_5",
-                                  channel: "whatsapp",
-                                  audience: "GUARANTOR",
-                                  recipient: whatsappNumber,
-                                  dayKey: todayDayKey,
-                                })
-                              : false;
-
-                            return (
-                              <div
-                                key={`${installment.id}-${index}`}
-                                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-2"
-                              >
-                                <div className="text-[11px] font-semibold text-zinc-700">
-                                  {guarantor.fullName}
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {whatsappNumber ? (
-                                      <button
-                                        type="button"
-                                        disabled={guarantorWhatsappSent}
-                                        onClick={async () => {
-                                          if (!tenantId) return;
-                                          if (guarantorWhatsappSent) return;
-                                          setNotificationSendError(null);
-                                          try {
-                                            await logNotificationSent(
-                                              tenantId,
-                                              installment.id,
-                                              {
-                                                type: "GUARANTOR_DUE_5",
-                                                channel: "whatsapp",
-                                                audience: "GUARANTOR",
-                                                recipient: whatsappNumber,
-                                              }
-                                            );
-                                            window.open(
-                                              whatsappHref,
-                                              "_blank",
-                                              "noopener,noreferrer"
-                                            );
-                                            await loadInstallments(
-                                              tenantId,
-                                              installment.contractId
-                                            );
-                                          } catch (err: any) {
-                                            setNotificationSendError(
-                                              err?.message ??
-                                                "No se pudo registrar el envio."
-                                            );
-                                          }
-                                        }}
-                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
-                                      >
-                                        WhatsApp
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled
-                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                                      >
-                                        WhatsApp (sin numero)
-                                      </button>
-                                    )}
-                                    {guarantorWhatsappSent && (
-                                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
-                                        Ya enviado hoy
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    {guarantorEmail ? (
-                                      <button
-                                        type="button"
-                                        disabled={guarantorEmailSent}
-                                        onClick={async () => {
-                                          if (!tenantId) return;
-                                          if (guarantorEmailSent) return;
-                                          setNotificationSendError(null);
-                                          try {
-                                            await logNotificationSent(
-                                              tenantId,
-                                              installment.id,
-                                              {
-                                                type: "GUARANTOR_DUE_5",
-                                                channel: "email",
-                                                audience: "GUARANTOR",
-                                                recipient: guarantorEmail,
-                                              }
-                                            );
-                                            window.open(emailHref, "_blank");
-                                            await loadInstallments(
-                                              tenantId,
-                                              installment.contractId
-                                            );
-                                          } catch (err: any) {
-                                            setNotificationSendError(
-                                              err?.message ??
-                                                "No se pudo registrar el envio."
-                                            );
-                                          }
-                                        }}
-                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 disabled:text-zinc-400"
-                                      >
-                                        Email
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        disabled
-                                        className="rounded-md border border-zinc-200 px-3 py-1.5 text-[11px] font-medium text-zinc-400"
-                                      >
-                                        Email (sin email)
-                                      </button>
-                                    )}
-                                    {guarantorEmailSent && (
-                                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
-                                        Ya enviado hoy
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="text-xs text-zinc-500">
-              v1: solo inquilino. No se permiten destinatarios manuales.
-            </div>
-          </div>
         )}
         {tab === "actividad" && (
           <div className="space-y-4">
