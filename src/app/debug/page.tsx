@@ -18,7 +18,7 @@ import {
 import { db } from "@/lib/firebase";
 
 type TestState = {
-  status: "idle" | "ok" | "error";
+  status: "idle" | "running" | "ok" | "error";
   message: string;
 };
 
@@ -97,22 +97,31 @@ export default function DebugPage() {
 
   const runTest = async (
     key: keyof typeof tests,
-    runner: () => Promise<void>
+    runner: () => Promise<number>
   ) => {
     setTests((prev) => ({
       ...prev,
-      [key]: { status: "idle", message: "Ejecutando..." },
+      [key]: { status: "running", message: "EJECUTANDO..." },
     }));
     try {
-      await runner();
+      const count = await runner();
       setTests((prev) => ({
         ...prev,
-        [key]: { status: "ok", message: "OK" },
+        [key]: { status: "ok", message: `OK (count=${count})` },
       }));
     } catch (err) {
+      console.error(`[DEBUG TEST ${String(key)}]`, err);
+      const errorObj = err as { code?: string; message?: string };
+      const errorCode = errorObj?.code ? String(errorObj.code) : "unknown";
+      const errorMessage = errorObj?.message
+        ? String(errorObj.message)
+        : getErrorText(err);
       setTests((prev) => ({
         ...prev,
-        [key]: { status: "error", message: getErrorText(err) },
+        [key]: {
+          status: "error",
+          message: `ERROR: ${errorCode} ${errorMessage}`,
+        },
       }));
     }
   };
@@ -173,9 +182,10 @@ export default function DebugPage() {
             onClick={() =>
               runTest("contracts", async () => {
                 const tenant = ensureTenantId();
-                await getDocs(
+                const snap = await getDocs(
                   query(collection(db, "tenants", tenant, "contracts"), limit(1))
                 );
+                return snap.size;
               })
             }
             className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
@@ -187,9 +197,10 @@ export default function DebugPage() {
             onClick={() =>
               runTest("installments", async () => {
                 const tenant = ensureTenantId();
-                await getDocs(
+                const snap = await getDocs(
                   query(collection(db, "tenants", tenant, "installments"), limit(1))
                 );
+                return snap.size;
               })
             }
             className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
@@ -201,9 +212,10 @@ export default function DebugPage() {
             onClick={() =>
               runTest("services", async () => {
                 const tenant = ensureTenantId();
-                await getDocs(
+                const snap = await getDocs(
                   query(collection(db, "tenants", tenant, "services"), limit(1))
                 );
+                return snap.size;
               })
             }
             className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
@@ -214,21 +226,15 @@ export default function DebugPage() {
         <div className="grid gap-2 text-xs text-zinc-600">
           <div>
             Contratos:{" "}
-            {tests.contracts.status === "error"
-              ? `ERROR - ${tests.contracts.message}`
-              : tests.contracts.message || "-"}
+            {tests.contracts.message || "-"}
           </div>
           <div>
             Installments:{" "}
-            {tests.installments.status === "error"
-              ? `ERROR - ${tests.installments.message}`
-              : tests.installments.message || "-"}
+            {tests.installments.message || "-"}
           </div>
           <div>
             Services:{" "}
-            {tests.services.status === "error"
-              ? `ERROR - ${tests.services.message}`
-              : tests.services.message || "-"}
+            {tests.services.message || "-"}
           </div>
         </div>
       </div>
@@ -248,6 +254,7 @@ export default function DebugPage() {
                 { tenantId: tenant, updatedAt: serverTimestamp() },
                 { merge: true }
               );
+              return 1;
             })
           }
           className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
