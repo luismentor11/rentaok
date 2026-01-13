@@ -8,6 +8,7 @@ import {
   collection,
   documentId,
   getDocs,
+  limit,
   orderBy,
   query,
   where,
@@ -291,6 +292,7 @@ export default function CanonesPage() {
       where("dueDate", ">=", Timestamp.fromDate(start)),
       where("dueDate", "<", Timestamp.fromDate(end)),
       orderBy("dueDate", "asc"),
+      limit(400),
     ];
     if (statusValue !== "ALL") {
       constraints.unshift(where("status", "==", statusValue));
@@ -450,7 +452,7 @@ export default function CanonesPage() {
         </div>
       ) : filteredInstallments.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-          No hay períodos para este filtro.
+          No hay períodos para este mes/filtro.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
