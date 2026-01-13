@@ -7,7 +7,6 @@ import {
   addDoc,
   collection,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   where,
@@ -287,6 +286,16 @@ export default function ContractDetailPage({ params }: PageProps) {
     return date ? date.toLocaleString() : "-";
   };
 
+  const getPeriodSortKey = (value: InstallmentRecord["period"]) => {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      const numeric = Number(trimmed);
+      return Number.isFinite(numeric) ? numeric : trimmed;
+    }
+    return "";
+  };
+
   const loadInstallments = async (tenant: string, contractId: string) => {
     setInstallmentsLoading(true);
     setInstallmentsErrorText(null);
@@ -294,19 +303,30 @@ export default function ContractDetailPage({ params }: PageProps) {
       const installmentsRef = collection(db, "tenants", tenant, "installments");
       const q = query(
         installmentsRef,
-        where("contractId", "==", contractId),
-        orderBy("period", "asc")
+        where("contractId", "==", contractId)
       );
       const snap = await getDocs(q);
-      setInstallments(
-        snap.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<InstallmentRecord, "id">),
-        }))
-      );
+      const nextInstallments = snap.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...(docSnap.data() as Omit<InstallmentRecord, "id">),
+      }));
+      nextInstallments.sort((a, b) => {
+        const dateA = toDateSafe(a.dueDate);
+        const dateB = toDateSafe(b.dueDate);
+        if (dateA && dateB) {
+          return dateA.getTime() - dateB.getTime();
+        }
+        const periodA = getPeriodSortKey(a.period);
+        const periodB = getPeriodSortKey(b.period);
+        if (typeof periodA === "number" && typeof periodB === "number") {
+          return periodA - periodB;
+        }
+        return String(periodA).localeCompare(String(periodB));
+      });
+      setInstallments(nextInstallments);
     } catch (err: any) {
       console.error("ContractTab:Pagos ERROR", err);
-      setInstallmentsErrorText("Ocurrio un error. Intenta de nuevo.");
+      setInstallmentsErrorText("Ocurrió un error. Intentá de nuevo.");
       setInstallments([]);
     } finally {
       setInstallmentsLoading(false);
@@ -922,7 +942,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                 } catch (err: any) {
                   console.error("ContractTab:Pagos ERROR", err);
                   setInstallmentsErrorText(
-                    "Ocurrio un error. Intenta de nuevo."
+                    "Ocurrió un error. Intentá de nuevo."
                   );
                 } finally {
                   setInstallmentsLoading(false);
@@ -934,8 +954,8 @@ export default function ContractDetailPage({ params }: PageProps) {
               </button>
             </div>
             {installmentsErrorText && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Ocurrio un error. Intenta de nuevo.
+              <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                Ocurrió un error. Intentá de nuevo.
               </div>
             )}
             {installmentsLoading ? (
@@ -1032,7 +1052,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                               } catch (err: any) {
                                 console.error("ContractTab:Pagos ERROR", err);
                                 setInstallmentsErrorText(
-                                  "Ocurrio un error. Intenta de nuevo."
+                                  "Ocurrió un error. Intentá de nuevo."
                                 );
                               } finally {
                                 setInstallmentActions((prev) => ({
@@ -1106,7 +1126,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                             } catch (err: any) {
                               console.error("ContractTab:Pagos ERROR", err);
                               setInstallmentsErrorText(
-                                "Ocurrio un error. Intenta de nuevo."
+                                "Ocurrió un error. Intentá de nuevo."
                               );
                             } finally {
                               setInstallmentActions((prev) => ({
