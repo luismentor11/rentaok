@@ -259,8 +259,8 @@ export default function ContractsPage() {
                   {contract.property?.title || "-"}
                 </div>
                 <div className="text-xs text-text-muted">
-                  Locatario: {contract.parties.tenant.fullName} | Propietario:{" "}
-                  {contract.parties.owner.fullName}
+                  Locatario: {contract.parties?.tenant?.fullName ?? "-"} |{" "}
+                  Propietario: {contract.parties?.owner?.fullName ?? "-"}
                 </div>
               </div>
               <Link
