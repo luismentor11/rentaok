@@ -179,7 +179,37 @@ export async function POST(req: Request) {
 
     stage = "pdf_parse";
     const buffer = Buffer.from(await file.arrayBuffer());
-    const parsedPdf = await parsePdfText(buffer);
+    let parsedPdf: ParsedPdf;
+    try {
+      parsedPdf = await parsePdfText(buffer);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error && err.stack ? err.stack : undefined;
+      const detailsSafe = {
+        name,
+        message,
+        stack: stack ? stack.slice(0, 1800) : undefined,
+      };
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({
+          stage,
+          mime,
+          size,
+          name,
+          detailsSafe,
+        })
+      );
+      return NextResponse.json(
+        {
+          error: "ai_import_failed",
+          code: "pdf_parse_failed",
+          stage,
+          detailsSafe: { mime, size, name, message },
+        },
+        { status: 500 }
+      );
+    }
     const text = parsedPdf.text;
     pages = parsedPdf.pages;
     if (!text.trim()) {
