@@ -170,6 +170,7 @@ export async function POST(req: Request) {
   let inputLength: number | undefined;
   let inputLengthUsed: number | undefined;
   let previewSafe: string | undefined;
+  let fallbackUsed = false;
 
   try {
     stage = "read_form";
@@ -249,7 +250,10 @@ export async function POST(req: Request) {
 
     stage = "gemini_call";
     const apiKey = process.env.GEMINI_API_KEY;
-    modelName = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+    const apiVersion = process.env.GEMINI_API_VERSION?.trim() || "v1";
+    const fallbackModel = "gemini-1.5-flash-latest";
+    const preferredModel = process.env.GEMINI_MODEL?.trim() || fallbackModel;
+    modelName = preferredModel;
     if (!apiKey) {
       console.error(
         "[AI_IMPORT]",
@@ -280,12 +284,26 @@ export async function POST(req: Request) {
       generationConfig: { temperature: 0 },
     };
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const callGemini = async (model: string) => {
+      const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    };
+
+    let response = await callGemini(modelName);
+    if (response.status === 404 && modelName !== fallbackModel) {
+      fallbackUsed = true;
+      modelName = fallbackModel;
+      response = await callGemini(modelName);
+    }
+
+    console.error(
+      "[AI_IMPORT]",
+      JSON.stringify({ stage, mime, size, modelName, pages, fallbackUsed })
+    );
 
     if (!response.ok) {
       const message = await response.text();
@@ -356,6 +374,7 @@ export async function POST(req: Request) {
           pages,
           inputLength,
           inputLengthUsed,
+          fallbackUsed,
         })
       );
     } else {
