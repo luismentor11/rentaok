@@ -136,11 +136,12 @@ export async function POST(req: Request) {
   let modelName: string | undefined;
   let pages: number | undefined;
   let inputLength: number | undefined;
+  let inputLengthUsed: number | undefined;
+  let previewSafe: string | undefined;
 
   try {
     stage = "read_form";
     const formData = await req.formData();
-    stage = "read_file";
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
       console.error(
@@ -157,6 +158,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    stage = "read_file";
 
     mime = file.type || undefined;
     size = file.size || undefined;
@@ -203,11 +205,14 @@ export async function POST(req: Request) {
     }
 
     inputLength = text.length;
+    const MAX_CHARS = 120_000;
+    const textUsed = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text;
+    inputLengthUsed = textUsed.length;
     const payload = {
       contents: [
         {
           role: "user",
-          parts: [{ text: buildPrompt(text) }],
+          parts: [{ text: buildPrompt(textUsed) }],
         },
       ],
       generationConfig: { temperature: 0 },
@@ -233,6 +238,7 @@ export async function POST(req: Request) {
     stage = "json_parse";
     const parsed = parseAiResponse(content);
     if (!("value" in parsed)) {
+      previewSafe = parsed.previewSafe;
       console.error(
         "[AI_IMPORT]",
         JSON.stringify({
@@ -268,7 +274,14 @@ export async function POST(req: Request) {
     if (stage === "json_parse") {
       console.error(
         "[AI_IMPORT]",
-        JSON.stringify({ stage, mime, size, modelName, pages })
+        JSON.stringify({
+          stage,
+          mime,
+          size,
+          modelName,
+          pages,
+          ...(previewSafe ? { previewSafe } : {}),
+        })
       );
     } else if (stage === "gemini_call") {
       console.error(
@@ -280,6 +293,7 @@ export async function POST(req: Request) {
           modelName,
           pages,
           inputLength,
+          inputLengthUsed,
         })
       );
     } else {
@@ -288,8 +302,14 @@ export async function POST(req: Request) {
         JSON.stringify({ stage, mime, size, modelName, pages })
       );
     }
+    const code =
+      message.startsWith("gemini_error:")
+        ? "gemini_error"
+        : stage === "json_parse"
+          ? "json_parse_failed"
+          : "unexpected_error";
     return NextResponse.json(
-      { error: "ai_import_failed", code: "unexpected_error", stage, detailsSafe },
+      { error: "ai_import_failed", code, stage, detailsSafe },
       { status: 500 }
     );
   }
