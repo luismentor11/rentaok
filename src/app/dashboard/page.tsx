@@ -331,12 +331,6 @@ export default function OperationalDashboardPage() {
           >
             Registrar pago
           </button>
-          <Link
-            href="/contracts"
-            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface"
-          >
-            Ver contratos
-          </Link>
           <a
             href="https://arquiler.com/"
             target="_blank"

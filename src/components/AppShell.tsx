@@ -232,26 +232,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   : "Panel Operativo"}
               </span>
               <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-2 text-xs text-text-muted md:flex">
-                  <Link
-                    href="/contracts/new"
-                    className="rounded-full border border-border px-2 py-1 hover:bg-surface-alt"
-                  >
-                    Nuevo contrato
-                  </Link>
-                  <Link
-                    href="/canones"
-                    className="rounded-full border border-border px-2 py-1 hover:bg-surface-alt"
-                  >
-                    Canon/Mes
-                  </Link>
-                  <Link
-                    href="/pagos"
-                    className="rounded-full border border-border px-2 py-1 hover:bg-surface-alt"
-                  >
-                    Pagos
-                  </Link>
-                </div>
                 <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-text-muted">
                   {typeof window !== "undefined" &&
                   (window.location.hostname.includes("localhost") ||
