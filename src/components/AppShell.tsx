@@ -174,6 +174,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router,
   ]);
 
+  const navLinkClass = (href: string) => {
+    const isActive = pathname === href;
+    return [
+      "flex items-center gap-3 rounded-lg px-3 py-2 transition",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+      isActive
+        ? "bg-surface-alt text-text shadow-sm"
+        : "text-text-muted hover:bg-surface-alt hover:text-text",
+    ].join(" ");
+  };
+
   return (
     <div className="min-h-screen bg-bg text-text">
       <div className="flex min-h-screen">
@@ -188,35 +199,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mt-6 space-y-2 text-sm font-medium text-text-muted">
             <Link
               href="/dashboard"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
+              className={navLinkClass("/dashboard")}
+              aria-current={pathname === "/dashboard" ? "page" : undefined}
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
               Dashboard
             </Link>
             <Link
               href="/contracts"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
+              className={navLinkClass("/contracts")}
+              aria-current={pathname === "/contracts" ? "page" : undefined}
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
               Contratos
             </Link>
             <Link
               href="/canones"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
+              className={navLinkClass("/canones")}
+              aria-current={pathname === "/canones" ? "page" : undefined}
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
               Canon/Mes
             </Link>
             <Link
               href="/pagos"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
+              className={navLinkClass("/pagos")}
+              aria-current={pathname === "/pagos" ? "page" : undefined}
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
               Pagos
             </Link>
             <Link
               href="/settings"
-              className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-surface-alt hover:text-text"
+              className={navLinkClass("/settings")}
+              aria-current={pathname === "/settings" ? "page" : undefined}
             >
               <span className="h-2 w-2 rounded-sm bg-muted" />
               Configuracion
