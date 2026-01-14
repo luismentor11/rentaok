@@ -72,6 +72,84 @@ type GuarantorInput = {
   whatsapp: string;
 };
 
+const normalizeAiImport = (
+  value?: Partial<AiImportResponse> | null
+): AiImportResponse => {
+  const contract = value?.contract ?? ({} as Partial<AiImportResponse["contract"]>);
+  const owner =
+    contract.owner ?? ({} as Partial<AiImportResponse["contract"]["owner"]>);
+  const tenant =
+    contract.tenant ?? ({} as Partial<AiImportResponse["contract"]["tenant"]>);
+  const property =
+    contract.property ?? ({} as Partial<AiImportResponse["contract"]["property"]>);
+  const dates =
+    contract.dates ?? ({} as Partial<AiImportResponse["contract"]["dates"]>);
+  const rent =
+    contract.rent ?? ({} as Partial<AiImportResponse["contract"]["rent"]>);
+  const deposit = (contract.deposit ?? {}) as {
+    amount?: number | null;
+    currency?: string;
+  };
+  const guarantee =
+    contract.guarantee ??
+    ({} as Partial<AiImportResponse["contract"]["guarantee"]>);
+  const confidence =
+    value?.confidence ?? ({} as Partial<AiImportResponse["confidence"]>);
+  return {
+    contract: {
+      owner: {
+        fullName: owner.fullName ?? "",
+        dni: owner.dni ?? "",
+        phone: owner.phone ?? "",
+        email: owner.email ?? "",
+      },
+      tenant: {
+        fullName: tenant.fullName ?? "",
+        dni: tenant.dni ?? "",
+        phone: tenant.phone ?? "",
+        email: tenant.email ?? "",
+      },
+      property: {
+        address: property.address ?? "",
+        unit: property.unit ?? "",
+        city: property.city ?? "",
+        province: property.province ?? "",
+      },
+      dates: {
+        startDate: dates.startDate ?? "",
+        endDate: dates.endDate ?? "",
+      },
+      rent: {
+        amount:
+          rent.amount !== null && rent.amount !== undefined ? rent.amount : null,
+        currency: rent.currency ?? "ARS",
+        dueDay: rent.dueDay ?? null,
+      },
+      deposit: {
+        amount:
+          deposit.amount !== null && deposit.amount !== undefined
+            ? deposit.amount
+            : null,
+        currency: deposit.currency ?? "ARS",
+      },
+      guarantee: {
+        type: guarantee.type ?? "OTRO",
+        details: guarantee.details,
+      },
+    },
+    confidence: {
+      owner: confidence.owner ?? "bajo",
+      tenant: confidence.tenant ?? "bajo",
+      property: confidence.property ?? "bajo",
+      dates: confidence.dates ?? "bajo",
+      rent: confidence.rent ?? "bajo",
+      deposit: confidence.deposit ?? "bajo",
+      guarantee: confidence.guarantee ?? "bajo",
+    },
+    warnings: value?.warnings,
+  };
+};
+
 export default function NewContractPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -270,8 +348,9 @@ export default function NewContractPage() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error ?? "ai_import_failed");
       }
-      const payload = (await response.json()) as AiImportResponse;
-      setAiResult(payload);
+      const payload = (await response.json()) as Partial<AiImportResponse>;
+      const normalized = normalizeAiImport(payload);
+      setAiResult(normalized);
       setAiStep("result");
     } catch (err) {
       console.error("Contracts:AI import", err);
