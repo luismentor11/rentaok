@@ -962,7 +962,7 @@ export default function NewContractPage() {
       </button>
       {aiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-xl rounded-xl bg-white p-5 shadow-lg">
+          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-xl bg-white p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-zinc-900">
                 Cargar contrato desde PDF
