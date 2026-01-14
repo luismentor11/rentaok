@@ -15,6 +15,22 @@ type ContractRecordWithProperty = ContractRecord & {
   };
 };
 
+const emptyParty = { fullName: "", dni: "", email: "", whatsapp: "" };
+
+const normalizeContract = (
+  contract: ContractRecordWithProperty
+): ContractRecordWithProperty => {
+  const parties = contract.parties ?? {};
+  return {
+    ...contract,
+    parties: {
+      ...parties,
+      owner: { ...emptyParty, ...(parties.owner ?? {}) },
+      tenant: { ...emptyParty, ...(parties.tenant ?? {}) },
+    },
+  };
+};
+
 export default function ContractsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -63,7 +79,9 @@ export default function ContractsPage() {
         const page = await listContractsPage(nextTenantId, { pageSize: 20 });
         if (!active) return;
         setContracts(
-          page.items.filter((item) => (item as { status?: string }).status !== "deleted")
+          page.items
+            .filter((item) => (item as { status?: string }).status !== "deleted")
+            .map(normalizeContract)
         );
         setCursor(page.nextCursor);
         setHasMore(!!page.nextCursor);
@@ -285,9 +303,9 @@ export default function ContractsPage() {
                 pageSize: 20,
                 cursor,
               });
-              const nextItems = page.items.filter(
-                (item) => (item as { status?: string }).status !== "deleted"
-              );
+              const nextItems = page.items
+                .filter((item) => (item as { status?: string }).status !== "deleted")
+                .map(normalizeContract);
               setContracts((prev) => [...prev, ...nextItems]);
               setCursor(page.nextCursor);
               setHasMore(!!page.nextCursor);

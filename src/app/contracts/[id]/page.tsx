@@ -114,6 +114,20 @@ type NotificationLogEntry = {
 
 const emptyParty = { fullName: "", dni: "", email: "", whatsapp: "" };
 
+const normalizeContract = (
+  contract: ContractRecordWithProperty
+): ContractRecordWithProperty => {
+  const parties = contract.parties ?? {};
+  return {
+    ...contract,
+    parties: {
+      ...parties,
+      owner: { ...emptyParty, ...(parties.owner ?? {}) },
+      tenant: { ...emptyParty, ...(parties.tenant ?? {}) },
+    },
+  };
+};
+
 export default function ContractDetailPage({ params }: PageProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -270,7 +284,7 @@ export default function ContractDetailPage({ params }: PageProps) {
           setContract(null);
           return;
         }
-        setContract(data);
+        setContract(normalizeContract(data));
       } catch (err: any) {
         if (!active) return;
         console.error("ContractDetail:load", err);
