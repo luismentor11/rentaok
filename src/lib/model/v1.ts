@@ -57,7 +57,7 @@ export type ContractUpdateRule = {
   periodMonths: number;
 };
 
-export type ContractStatus = "active" | "ended" | "deleted";
+export type ContractStatus = "active" | "ended" | "deleted" | "draft";
 
 export type ContractPdfMetadata = {
   path: string;

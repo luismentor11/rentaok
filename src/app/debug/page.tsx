@@ -16,7 +16,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { readDebugError, type DebugErrorEntry } from "@/lib/debug";
+import { readAiError, readDebugError, type DebugErrorEntry } from "@/lib/debug";
 
 type TestState = {
   status: "idle" | "running" | "ok" | "error";
@@ -38,6 +38,7 @@ export default function DebugPage() {
   const [profileTenantId, setProfileTenantId] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [lastError, setLastError] = useState<DebugErrorEntry | null>(null);
+  const [lastAiError, setLastAiError] = useState<DebugErrorEntry | null>(null);
   const [tests, setTests] = useState<{
     contracts: TestState;
     installments: TestState;
@@ -99,6 +100,7 @@ export default function DebugPage() {
 
   useEffect(() => {
     setLastError(readDebugError());
+    setLastAiError(readAiError());
   }, []);
 
   const runTest = async (
@@ -207,6 +209,36 @@ export default function DebugPage() {
               <div>
                 <span className="font-medium text-zinc-900">Code:</span>{" "}
                 {lastError.code}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-xs text-zinc-600">Sin errores recientes.</div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-2 text-sm text-zinc-700">
+        <div className="text-sm font-semibold text-zinc-900">
+          Ultimo error IA
+        </div>
+        {lastAiError ? (
+          <div className="space-y-1 text-xs text-zinc-600">
+            <div>
+              <span className="font-medium text-zinc-900">Scope:</span>{" "}
+              {lastAiError.scope}
+            </div>
+            <div>
+              <span className="font-medium text-zinc-900">At:</span>{" "}
+              {lastAiError.at}
+            </div>
+            <div>
+              <span className="font-medium text-zinc-900">Message:</span>{" "}
+              {lastAiError.message}
+            </div>
+            {lastAiError.code && (
+              <div>
+                <span className="font-medium text-zinc-900">Code:</span>{" "}
+                {lastAiError.code}
               </div>
             )}
           </div>

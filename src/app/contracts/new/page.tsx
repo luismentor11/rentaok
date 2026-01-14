@@ -7,8 +7,13 @@ import { getUserProfile } from "@/lib/db/users";
 import { listProperties, Property } from "@/lib/db/properties";
 import { createContract, updateContract } from "@/lib/db/contracts";
 import { uploadContractPdf } from "@/lib/storage/contracts";
-import { defaultNotificationConfig, guaranteeTypeLabels } from "@/lib/model/v1";
+import {
+  defaultNotificationConfig,
+  guaranteeTypeLabels,
+  normalizeGuaranteeType,
+} from "@/lib/model/v1";
 import type { GuaranteeType, UpdateRuleType } from "@/lib/model/v1";
+import { recordAiError } from "@/lib/debug";
 
 const updateRuleOptions: { value: UpdateRuleType; label: string }[] = [
   { value: "IPC", label: "IPC" },
@@ -26,6 +31,38 @@ const guaranteeOptions: { value: GuaranteeType; label: string }[] = [
   },
   { value: "OTRO", label: guaranteeTypeLabels.OTRO },
 ];
+
+type AiConfidence = "alto" | "medio" | "bajo";
+
+type AiImportResponse = {
+  contract: {
+    owner: { fullName: string; dni?: string; phone?: string; email?: string };
+    tenant: { fullName: string; dni?: string; phone?: string; email?: string };
+    property: {
+      address: string;
+      unit?: string;
+      city?: string;
+      province?: string;
+    };
+    dates: { startDate: string; endDate: string };
+    rent: { amount: number | null; currency: string; dueDay?: number | null };
+    deposit?: { amount?: number | null; currency?: string };
+    guarantee: {
+      type: GuaranteeType;
+      details?: string;
+    };
+  };
+  confidence: {
+    owner: AiConfidence;
+    tenant: AiConfidence;
+    property: AiConfidence;
+    dates: AiConfidence;
+    rent: AiConfidence;
+    deposit: AiConfidence;
+    guarantee: AiConfidence;
+  };
+  warnings?: string[];
+};
 
 type GuarantorInput = {
   fullName: string;
@@ -68,6 +105,14 @@ export default function NewContractPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+  const [isDraft, setIsDraft] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiStep, setAiStep] = useState<"upload" | "processing" | "result">(
+    "upload"
+  );
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiResult, setAiResult] = useState<AiImportResponse | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -153,6 +198,87 @@ export default function NewContractPage() {
 
   const removeGuarantor = (index: number) => {
     setGuarantors((current) => current.filter((_, idx) => idx !== index));
+  };
+
+  const openAiModal = () => {
+    setAiError(null);
+    setAiResult(null);
+    setAiFile(null);
+    setAiStep("upload");
+    setAiModalOpen(true);
+  };
+
+  const closeAiModal = () => {
+    if (aiStep === "processing") return;
+    setAiModalOpen(false);
+  };
+
+  const applyAiResult = (result: AiImportResponse, file: File | null) => {
+    const { contract } = result;
+    setOwnerName(contract.owner.fullName || "");
+    setOwnerDni(contract.owner.dni ?? "");
+    setOwnerEmail(contract.owner.email ?? "");
+    setOwnerWhatsapp(contract.owner.phone ?? "");
+
+    setTenantName(contract.tenant.fullName || "");
+    setTenantDni(contract.tenant.dni ?? "");
+    setTenantEmail(contract.tenant.email ?? "");
+    setTenantWhatsapp(contract.tenant.phone ?? "");
+
+    if (propertySelection === "manual") {
+      const address = contract.property.address ?? "";
+      setPropertyAddress(address);
+      setPropertyTitle((prev) => (prev.trim() ? prev : address || "Propiedad"));
+    }
+
+    setStartDate(contract.dates.startDate || "");
+    setEndDate(contract.dates.endDate || "");
+    setRentAmount(
+      contract.rent.amount !== null && contract.rent.amount !== undefined
+        ? String(contract.rent.amount)
+        : ""
+    );
+    setDueDay(
+      contract.rent.dueDay !== null && contract.rent.dueDay !== undefined
+        ? String(contract.rent.dueDay)
+        : ""
+    );
+    setDepositAmount(
+      contract.deposit?.amount !== null &&
+        contract.deposit?.amount !== undefined
+        ? String(contract.deposit.amount)
+        : ""
+    );
+    setGuaranteeType(normalizeGuaranteeType(contract.guarantee.type));
+    if (file) {
+      setContractPdf(file);
+    }
+  };
+
+  const handleAiImport = async () => {
+    if (!aiFile) return;
+    setAiError(null);
+    setAiStep("processing");
+    try {
+      const formData = new FormData();
+      formData.append("file", aiFile);
+      const response = await fetch("/api/ai/contracts/import", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? "ai_import_failed");
+      }
+      const payload = (await response.json()) as AiImportResponse;
+      setAiResult(payload);
+      setAiStep("result");
+    } catch (err) {
+      console.error("Contracts:AI import", err);
+      recordAiError("ai:contracts:import", err);
+      setAiError("No pudimos analizar el PDF. Proba de nuevo.");
+      setAiStep("upload");
+    }
   };
 
   const handleSubmit = async () => {
@@ -286,6 +412,7 @@ export default function NewContractPage() {
         guaranteeType,
         notificationConfig: defaultNotificationConfig,
         createdByUid: user.uid,
+        status: isDraft ? "draft" : "active",
       });
 
       const pdfMeta = await uploadContractPdf(tenantId, contractId, contractPdf);
@@ -330,6 +457,12 @@ export default function NewContractPage() {
     depositValue >= 0 &&
     guarantorsValid;
 
+  const getConfidenceTone = (value: AiConfidence) => {
+    if (value === "alto") return "bg-emerald-100 text-emerald-700";
+    if (value === "medio") return "bg-amber-100 text-amber-700";
+    return "bg-zinc-100 text-zinc-700";
+  };
+
   if (loading || pageLoading) {
     return <div className="text-sm text-zinc-600">Cargando...</div>;
   }
@@ -340,15 +473,31 @@ export default function NewContractPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          Nuevo contrato
-        </h1>
-        <p className="text-sm text-zinc-600">Completa los datos del contrato.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-zinc-900">
+            Nuevo contrato
+          </h1>
+          <p className="text-sm text-zinc-600">
+            Completa los datos del contrato.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={openAiModal}
+          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
+        >
+          Cargar desde PDF
+        </button>
       </div>
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
+        </div>
+      )}
+      {isDraft && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          Borrador con datos importados. Revisa antes de guardar.
         </div>
       )}
 
@@ -722,8 +871,301 @@ export default function NewContractPage() {
         disabled={submitting || !isFormValid}
         className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
       >
-        {submitting ? "Guardando..." : "Crear contrato"}
+        {submitting
+          ? "Guardando..."
+          : isDraft
+            ? "Guardar borrador"
+            : "Crear contrato"}
       </button>
+      {aiModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-xl rounded-xl bg-white p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Cargar contrato desde PDF
+              </h2>
+              <button
+                type="button"
+                onClick={closeAiModal}
+                disabled={aiStep === "processing"}
+                className="rounded-md px-2 py-1 text-xs font-semibold text-zinc-500 hover:text-zinc-700 disabled:text-zinc-300"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="mt-4 space-y-4">
+              {aiStep === "upload" && (
+                <>
+                  <p className="text-sm text-zinc-600">
+                    Subi el PDF y dejamos el contrato prellenado como borrador.
+                  </p>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setAiFile(file);
+                      setAiError(null);
+                    }}
+                    className="text-sm"
+                  />
+                  {aiFile && (
+                    <div className="text-xs text-zinc-500">{aiFile.name}</div>
+                  )}
+                  {aiError && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                      {aiError}
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={closeAiModal}
+                      className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAiImport}
+                      disabled={!aiFile}
+                      className="rounded-md bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                    >
+                      Analizar PDF
+                    </button>
+                  </div>
+                </>
+              )}
+              {aiStep === "processing" && (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-6 text-center text-sm text-zinc-600">
+                  <div className="mx-auto mb-3 h-2 w-2 animate-pulse rounded-full bg-zinc-400" />
+                  Analizando PDF...
+                </div>
+              )}
+              {aiStep === "result" && aiResult && (
+                <>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">
+                        Propietario
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.owner
+                        )}`}
+                      >
+                        {aiResult.confidence.owner}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.owner.fullName &&
+                          `Nombre: ${aiResult.contract.owner.fullName}`,
+                        aiResult.contract.owner.dni &&
+                          `DNI: ${aiResult.contract.owner.dni}`,
+                        aiResult.contract.owner.email &&
+                          `Email: ${aiResult.contract.owner.email}`,
+                        aiResult.contract.owner.phone &&
+                          `WhatsApp: ${aiResult.contract.owner.phone}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">
+                        Locatario
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.tenant
+                        )}`}
+                      >
+                        {aiResult.confidence.tenant}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.tenant.fullName &&
+                          `Nombre: ${aiResult.contract.tenant.fullName}`,
+                        aiResult.contract.tenant.dni &&
+                          `DNI: ${aiResult.contract.tenant.dni}`,
+                        aiResult.contract.tenant.email &&
+                          `Email: ${aiResult.contract.tenant.email}`,
+                        aiResult.contract.tenant.phone &&
+                          `WhatsApp: ${aiResult.contract.tenant.phone}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">
+                        Propiedad
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.property
+                        )}`}
+                      >
+                        {aiResult.confidence.property}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.property.address &&
+                          `Direccion: ${aiResult.contract.property.address}`,
+                        aiResult.contract.property.unit &&
+                          `Unidad: ${aiResult.contract.property.unit}`,
+                        aiResult.contract.property.city &&
+                          `Ciudad: ${aiResult.contract.property.city}`,
+                        aiResult.contract.property.province &&
+                          `Provincia: ${aiResult.contract.property.province}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">Fechas</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.dates
+                        )}`}
+                      >
+                        {aiResult.confidence.dates}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.dates.startDate &&
+                          `Inicio: ${aiResult.contract.dates.startDate}`,
+                        aiResult.contract.dates.endDate &&
+                          `Fin: ${aiResult.contract.dates.endDate}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">
+                        Canon
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.rent
+                        )}`}
+                      >
+                        {aiResult.confidence.rent}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.rent.amount !== null &&
+                          aiResult.contract.rent.amount !== undefined &&
+                          `Monto: ${aiResult.contract.rent.amount}`,
+                        aiResult.contract.rent.currency &&
+                          `Moneda: ${aiResult.contract.rent.currency}`,
+                        aiResult.contract.rent.dueDay !== null &&
+                          aiResult.contract.rent.dueDay !== undefined &&
+                          `Vencimiento: ${aiResult.contract.rent.dueDay}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">
+                        Deposito
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.deposit
+                        )}`}
+                      >
+                        {aiResult.confidence.deposit}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.deposit?.amount !== null &&
+                          aiResult.contract.deposit?.amount !== undefined &&
+                          `Monto: ${aiResult.contract.deposit.amount}`,
+                        aiResult.contract.deposit?.currency &&
+                          `Moneda: ${aiResult.contract.deposit.currency}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-zinc-800">
+                        Garantia
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getConfidenceTone(
+                          aiResult.confidence.guarantee
+                        )}`}
+                      >
+                        {aiResult.confidence.guarantee}
+                      </span>
+                    </div>
+                    <div className="text-xs text-zinc-600">
+                      {[
+                        aiResult.contract.guarantee.type &&
+                          `Tipo: ${
+                            guaranteeTypeLabels[
+                              normalizeGuaranteeType(
+                                aiResult.contract.guarantee.type
+                              )
+                            ]
+                          }`,
+                        aiResult.contract.guarantee.details &&
+                          `Detalle: ${aiResult.contract.guarantee.details}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" / ") || "Sin datos"}
+                    </div>
+                  </div>
+                  {aiResult.warnings && aiResult.warnings.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      {aiResult.warnings.join(" / ")}
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiStep("upload");
+                      }}
+                      className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
+                    >
+                      Volver
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyAiResult(aiResult, aiFile);
+                        setIsDraft(true);
+                        setAiModalOpen(false);
+                      }}
+                      className="rounded-md bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+                    >
+                      Crear borrador
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
