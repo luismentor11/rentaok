@@ -349,7 +349,11 @@ export default function NewContractPage() {
         throw new Error(payload?.error ?? "ai_import_failed");
       }
       const payload = (await response.json()) as Partial<AiImportResponse>;
-      const normalized = normalizeAiImport(payload);
+      const normalized = normalizeAiImport(
+        payload?.contract
+          ? payload
+          : ({ contract: payload } as Partial<AiImportResponse>)
+      );
       setAiResult(normalized);
       setAiStep("result");
     } catch (err) {
