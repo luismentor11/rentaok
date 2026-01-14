@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 type ConfidenceLevel = "alto" | "medio" | "bajo";
 
 type AiContractImportResponse = {
@@ -54,15 +56,18 @@ const emptyResponse = (warnings?: string[]): AiContractImportResponse => ({
   ...(warnings ? { warnings } : {}),
 });
 
-const parsePdfText = async (buffer: Buffer) => {
-  try {
-    const mod = await import("pdf-parse");
-    const pdfParse = mod as unknown as (b: Buffer) => Promise<{ text?: string }>;
-    const parsed = await pdfParse(buffer);
-    return typeof parsed?.text === "string" ? parsed.text : "";
-  } catch {
-    return "";
-  }
+type ParsedPdf = { text: string; pages?: number };
+
+const parsePdfText = async (buffer: Buffer): Promise<ParsedPdf> => {
+  const mod = await import("pdf-parse");
+  const pdfParse = mod as unknown as (
+    b: Buffer
+  ) => Promise<{ text?: string; numpages?: number }>;
+  const parsed = await pdfParse(buffer);
+  return {
+    text: typeof parsed?.text === "string" ? parsed.text : "",
+    pages: typeof parsed?.numpages === "number" ? parsed.numpages : undefined,
+  };
 };
 
 const buildPrompt = (text: string) => `
@@ -81,83 +86,210 @@ const parseJsonPayload = (content: string) => {
     .replace(/^```/i, "")
     .replace(/```$/i, "")
     .trim();
-  const start = withoutFence.indexOf("{");
-  const end = withoutFence.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    return withoutFence.slice(start, end + 1);
-  }
   return withoutFence;
 };
 
-const callGemini = async (text: string): Promise<AiContractImportResponse> => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return emptyResponse(["missing_gemini_key"]);
-  }
-
-  const model = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
-  const payload = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: buildPrompt(text) }],
-      },
-    ],
-    generationConfig: { temperature: 0 },
-  };
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`gemini_error: ${response.status} ${message}`);
-  }
-
-  const data = (await response.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+const safeJsonParse = (payload: string) => {
   try {
-    const parsed = JSON.parse(parseJsonPayload(content)) as AiContractImportResponse;
-    return parsed;
-  } catch (err) {
-    throw new Error(`gemini_parse_error: ${String(err)}`);
+    return { ok: true as const, value: JSON.parse(payload) as AiContractImportResponse };
+  } catch {
+    return { ok: false as const };
   }
 };
 
+const parseAiResponse = (content: string) => {
+  const trimmed = content.trim();
+  const direct = safeJsonParse(trimmed);
+  if (direct.ok) {
+    return { value: direct.value };
+  }
+  const withoutFence = parseJsonPayload(content);
+  const fenceParsed = safeJsonParse(withoutFence);
+  if (fenceParsed.ok) {
+    return { value: fenceParsed.value };
+  }
+  const start = withoutFence.indexOf("{");
+  const end = withoutFence.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const extracted = safeJsonParse(withoutFence.slice(start, end + 1));
+    if (extracted.ok) {
+      return { value: extracted.value };
+    }
+  }
+  return { previewSafe: withoutFence.slice(0, 300) };
+};
+
+type Stage =
+  | "request"
+  | "read_form"
+  | "read_file"
+  | "pdf_parse"
+  | "gemini_call"
+  | "json_parse"
+  | "response";
+
 export async function POST(req: Request) {
+  let stage: Stage = "request";
+  let mime: string | undefined;
+  let size: number | undefined;
+  let name: string | undefined;
+  let modelName: string | undefined;
+  let pages: number | undefined;
+  let inputLength: number | undefined;
+
   try {
+    stage = "read_form";
     const formData = await req.formData();
+    stage = "read_file";
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({ stage, mime, size, modelName, pages })
+      );
       return NextResponse.json(
-        { error: "missing_file" },
+        {
+          error: "ai_import_failed",
+          code: "bad_request",
+          stage,
+          detailsSafe: { message: "missing_file" },
+        },
         { status: 400 }
       );
     }
 
+    mime = file.type || undefined;
+    size = file.size || undefined;
+    name = file.name || undefined;
+
+    stage = "pdf_parse";
     const buffer = Buffer.from(await file.arrayBuffer());
-    const text = await parsePdfText(buffer);
-
-    const hasProvider = Boolean(process.env.GEMINI_API_KEY);
-    if (!hasProvider) {
-      return NextResponse.json(emptyResponse(["ai_not_configured"]));
+    const parsedPdf = await parsePdfText(buffer);
+    const text = parsedPdf.text;
+    pages = parsedPdf.pages;
+    if (!text.trim()) {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({ stage, mime, size, modelName, pages })
+      );
+      return NextResponse.json(
+        {
+          error: "ai_import_failed",
+          code: "empty_pdf_text",
+          stage,
+          detailsSafe: { mime, size, name },
+        },
+        { status: 422 }
+      );
     }
 
-    if (process.env.GEMINI_API_KEY) {
-      const result = await callGemini(text);
-      return NextResponse.json(result);
+    stage = "gemini_call";
+    const apiKey = process.env.GEMINI_API_KEY;
+    modelName = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+    if (!apiKey) {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({ stage, mime, size, modelName, pages })
+      );
+      return NextResponse.json(
+        {
+          error: "ai_import_failed",
+          code: "missing_secret",
+          stage,
+          detailsSafe: { mime, size, name, message: "missing_gemini_key" },
+        },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json(emptyResponse(["ai_provider_unavailable"]));
+    inputLength = text.length;
+    const payload = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: buildPrompt(text) }],
+        },
+      ],
+      generationConfig: { temperature: 0 },
+    };
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(`gemini_error: ${response.status} ${message}`);
+    }
+
+    const data = (await response.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    stage = "json_parse";
+    const parsed = parseAiResponse(content);
+    if (!("value" in parsed)) {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({
+          stage,
+          mime,
+          size,
+          modelName,
+          pages,
+          previewSafe: parsed.previewSafe,
+        })
+      );
+      return NextResponse.json(
+        {
+          error: "ai_import_failed",
+          code: "json_parse_failed",
+          stage,
+          detailsSafe: { mime, size, name, message: "invalid_json" },
+        },
+        { status: 500 }
+      );
+    }
+
+    stage = "response";
+    return NextResponse.json(parsed.value);
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const detailsSafe = {
+      mime,
+      size,
+      name,
+      message: message.slice(0, 300),
+    };
+    if (stage === "json_parse") {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({ stage, mime, size, modelName, pages })
+      );
+    } else if (stage === "gemini_call") {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({
+          stage,
+          mime,
+          size,
+          modelName,
+          pages,
+          inputLength,
+        })
+      );
+    } else {
+      console.error(
+        "[AI_IMPORT]",
+        JSON.stringify({ stage, mime, size, modelName, pages })
+      );
+    }
     return NextResponse.json(
-      { error: "ai_import_failed", detail: String(err) },
+      { error: "ai_import_failed", code: "unexpected_error", stage, detailsSafe },
       { status: 500 }
     );
   }
