@@ -21,6 +21,10 @@ service cloud.firestore {
       }
     }
 
+    match /tenants/{tenantId}/installments/{installmentId}/payments/{paymentId} {
+      allow read, write: if isTenantMember(tenantId);
+    }
+
     match /tenants/{tenantId}/{document=**} {
       allow read, write: if isTenantMember(tenantId);
     }
