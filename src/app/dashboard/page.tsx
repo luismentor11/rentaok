@@ -148,14 +148,23 @@ export default function OperationalDashboardPage() {
     setInstallmentsLoading(true);
     setInstallmentsError(null);
     try {
-      const list = await listInstallmentsForTenant(tenant, {
-        status: statusFilter,
-      });
+      const params = statusFilter === "ALL" ? {} : { status: statusFilter };
+      const list = await listInstallmentsForTenant(tenant, params);
       setInstallments(list);
     } catch (err: any) {
-      setInstallmentsError(
-        err?.message ?? "No se pudieron cargar cuotas."
-      );
+      const message = err?.message ?? "No se pudieron cargar cuotas.";
+      setInstallmentsError(message);
+      try {
+        localStorage.setItem(
+          "debug:lastInstallmentsError",
+          JSON.stringify({
+            message,
+            statusFilter,
+            tenantId,
+            ts: Date.now(),
+          })
+        );
+      } catch {}
     } finally {
       setInstallmentsLoading(false);
     }
@@ -214,6 +223,7 @@ export default function OperationalDashboardPage() {
         label: "Vencimientos activos",
         value: String(counts.total),
         tone: "bg-surface-alt text-text",
+        onClick: () => setStatusFilter("ALL"),
       },
       {
         label: "Saldo pendiente",
@@ -229,6 +239,7 @@ export default function OperationalDashboardPage() {
         label: "En gestion",
         value: String(counts.EN_ACUERDO),
         tone: "bg-risk/15 text-risk",
+        onClick: () => setStatusFilter("EN_ACUERDO"),
       },
     ];
   }, [installments]);
@@ -357,7 +368,13 @@ export default function OperationalDashboardPage() {
         {kpis.map((kpi) => (
           <div
             key={kpi.label}
-            className="rounded-xl border border-border bg-surface p-4"
+            onClick={kpi.onClick}
+            className={[
+              "rounded-xl border border-border bg-surface p-4",
+              kpi.onClick ? "cursor-pointer transition hover:bg-surface-alt" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           >
             <div className="flex items-center justify-between text-xs text-text-muted">
               <span>{kpi.label}</span>
