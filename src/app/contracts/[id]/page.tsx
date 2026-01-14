@@ -112,6 +112,8 @@ type NotificationLogEntry = {
   message?: string;
 };
 
+const emptyParty = { fullName: "", dni: "", email: "", whatsapp: "" };
+
 export default function ContractDetailPage({ params }: PageProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -220,8 +222,8 @@ export default function ContractDetailPage({ params }: PageProps) {
     rentAmount: "",
     updateRule: { type: "MANUAL", periodMonths: "" },
     parties: {
-      owner: { fullName: "", dni: "", email: "", whatsapp: "" },
-      tenant: { fullName: "", dni: "", email: "", whatsapp: "" },
+      owner: { ...emptyParty },
+      tenant: { ...emptyParty },
     },
     guaranteeType: "OTRO",
     guaranteeDetails: "",
@@ -2300,14 +2302,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                 </label>
                 <input
                   type="text"
-                  value={editForm.parties.owner.fullName}
+                  value={editForm.parties?.owner?.fullName ?? ""}
                   onChange={(event) =>
                     setEditForm((prev) => ({
                       ...prev,
                       parties: {
-                        ...prev.parties,
+                        ...(prev.parties ?? {}),
                         owner: {
-                          ...prev.parties.owner,
+                          ...(prev.parties?.owner ?? emptyParty),
                           fullName: event.target.value,
                         },
                       },
@@ -2319,14 +2321,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   <input
                     type="text"
-                    value={editForm.parties.owner.dni}
+                    value={editForm.parties?.owner?.dni ?? ""}
                     onChange={(event) =>
                       setEditForm((prev) => ({
                         ...prev,
                         parties: {
-                          ...prev.parties,
+                          ...(prev.parties ?? {}),
                           owner: {
-                            ...prev.parties.owner,
+                            ...(prev.parties?.owner ?? emptyParty),
                             dni: event.target.value,
                           },
                         },
@@ -2337,14 +2339,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                   />
                   <input
                     type="text"
-                    value={editForm.parties.owner.whatsapp}
+                    value={editForm.parties?.owner?.whatsapp ?? ""}
                     onChange={(event) =>
                       setEditForm((prev) => ({
                         ...prev,
                         parties: {
-                          ...prev.parties,
+                          ...(prev.parties ?? {}),
                           owner: {
-                            ...prev.parties.owner,
+                            ...(prev.parties?.owner ?? emptyParty),
                             whatsapp: event.target.value,
                           },
                         },
@@ -2355,14 +2357,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                   />
                   <input
                     type="email"
-                    value={editForm.parties.owner.email}
+                    value={editForm.parties?.owner?.email ?? ""}
                     onChange={(event) =>
                       setEditForm((prev) => ({
                         ...prev,
                         parties: {
-                          ...prev.parties,
+                          ...(prev.parties ?? {}),
                           owner: {
-                            ...prev.parties.owner,
+                            ...(prev.parties?.owner ?? emptyParty),
                             email: event.target.value,
                           },
                         },
@@ -2379,14 +2381,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                 </label>
                 <input
                   type="text"
-                  value={editForm.parties.tenant.fullName}
+                  value={editForm.parties?.tenant?.fullName ?? ""}
                   onChange={(event) =>
                     setEditForm((prev) => ({
                       ...prev,
                       parties: {
-                        ...prev.parties,
+                        ...(prev.parties ?? {}),
                         tenant: {
-                          ...prev.parties.tenant,
+                          ...(prev.parties?.tenant ?? emptyParty),
                           fullName: event.target.value,
                         },
                       },
@@ -2398,14 +2400,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   <input
                     type="text"
-                    value={editForm.parties.tenant.dni}
+                    value={editForm.parties?.tenant?.dni ?? ""}
                     onChange={(event) =>
                       setEditForm((prev) => ({
                         ...prev,
                         parties: {
-                          ...prev.parties,
+                          ...(prev.parties ?? {}),
                           tenant: {
-                            ...prev.parties.tenant,
+                            ...(prev.parties?.tenant ?? emptyParty),
                             dni: event.target.value,
                           },
                         },
@@ -2416,14 +2418,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                   />
                   <input
                     type="text"
-                    value={editForm.parties.tenant.whatsapp}
+                    value={editForm.parties?.tenant?.whatsapp ?? ""}
                     onChange={(event) =>
                       setEditForm((prev) => ({
                         ...prev,
                         parties: {
-                          ...prev.parties,
+                          ...(prev.parties ?? {}),
                           tenant: {
-                            ...prev.parties.tenant,
+                            ...(prev.parties?.tenant ?? emptyParty),
                             whatsapp: event.target.value,
                           },
                         },
@@ -2434,14 +2436,14 @@ export default function ContractDetailPage({ params }: PageProps) {
                   />
                   <input
                     type="email"
-                    value={editForm.parties.tenant.email}
+                    value={editForm.parties?.tenant?.email ?? ""}
                     onChange={(event) =>
                       setEditForm((prev) => ({
                         ...prev,
                         parties: {
-                          ...prev.parties,
+                          ...(prev.parties ?? {}),
                           tenant: {
-                            ...prev.parties.tenant,
+                            ...(prev.parties?.tenant ?? emptyParty),
                             email: event.target.value,
                           },
                         },
@@ -2521,8 +2523,8 @@ export default function ContractDetailPage({ params }: PageProps) {
                         periodMonths: Number(editForm.updateRule.periodMonths) || 0,
                       },
                       parties: {
-                        owner: { ...editForm.parties.owner },
-                        tenant: { ...editForm.parties.tenant },
+                        owner: { ...(editForm.parties?.owner ?? emptyParty) },
+                        tenant: { ...(editForm.parties?.tenant ?? emptyParty) },
                       },
                       guaranteeType: editForm.guaranteeType,
                       guaranteeDetails: editForm.guaranteeDetails,
