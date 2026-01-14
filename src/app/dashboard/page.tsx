@@ -187,17 +187,37 @@ export default function OperationalDashboardPage() {
     return date ? date.toLocaleDateString() : "-";
   };
 
+  const getOperationalWindow = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    if (today.getDate() >= 10) {
+      const start = new Date(year, month, 10, 0, 0, 0, 0);
+      const end = new Date(year, month + 1, 10, 23, 59, 59, 999);
+      return { start, end };
+    }
+    const start = new Date(year, month - 1, 10, 0, 0, 0, 0);
+    const end = new Date(year, month, 10, 23, 59, 59, 999);
+    return { start, end };
+  };
+
   const filteredInstallments = useMemo(() => {
+    const { start, end } = getOperationalWindow();
+    const windowed = installments.filter((installment) => {
+      const dueDate = toDateSafe(installment.dueDate);
+      if (!dueDate) return false;
+      return dueDate >= start && dueDate <= end;
+    });
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return installments;
-    return installments.filter((installment) => {
+    if (!term) return windowed;
+    return windowed.filter((installment) => {
       const haystack = `${installment.contractId} ${installment.period} ${installment.status}`.toLowerCase();
       return haystack.includes(term);
     });
   }, [installments, searchTerm]);
 
   const kpis = useMemo(() => {
-    const counts = installments.reduce(
+    const counts = filteredInstallments.reduce(
       (acc, item) => {
         acc.total += 1;
         acc.due += Number(item.totals?.due ?? 0);
@@ -242,7 +262,7 @@ export default function OperationalDashboardPage() {
         onClick: () => setStatusFilter("EN_ACUERDO"),
       },
     ];
-  }, [installments]);
+  }, [filteredInstallments]);
 
   const openPaymentModal = (installment: InstallmentRecord) => {
     setPaymentInstallment(installment);
