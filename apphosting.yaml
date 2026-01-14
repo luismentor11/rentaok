@@ -1,0 +1,9 @@
+env:
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
+  - variable: GEMINI_MODEL
+    value: gemini-1.5-flash
+    availability:
+      - RUNTIME
