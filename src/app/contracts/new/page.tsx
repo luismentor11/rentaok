@@ -7,7 +7,7 @@ import { getUserProfile } from "@/lib/db/users";
 import { listProperties, Property } from "@/lib/db/properties";
 import { createContract, updateContract } from "@/lib/db/contracts";
 import { uploadContractPdf } from "@/lib/storage/contracts";
-import { defaultNotificationConfig } from "@/lib/model/v1";
+import { defaultNotificationConfig, guaranteeTypeLabels } from "@/lib/model/v1";
 import type { GuaranteeType, UpdateRuleType } from "@/lib/model/v1";
 
 const updateRuleOptions: { value: UpdateRuleType; label: string }[] = [
@@ -18,8 +18,13 @@ const updateRuleOptions: { value: UpdateRuleType; label: string }[] = [
 ];
 
 const guaranteeOptions: { value: GuaranteeType; label: string }[] = [
-  { value: "GARANTES", label: "Garantes" },
-  { value: "CAUCION", label: "Caucion" },
+  { value: "GARANTES", label: guaranteeTypeLabels.GARANTES },
+  { value: "CAUCION", label: guaranteeTypeLabels.CAUCION },
+  {
+    value: "CONVENIO_DESALOJO",
+    label: guaranteeTypeLabels.CONVENIO_DESALOJO,
+  },
+  { value: "OTRO", label: guaranteeTypeLabels.OTRO },
 ];
 
 type GuarantorInput = {

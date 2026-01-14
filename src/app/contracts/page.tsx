@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { listContractsPage, ContractRecord } from "@/lib/db/contracts";
+import { recordDebugError } from "@/lib/debug";
 
 type ContractRecordWithProperty = ContractRecord & {
   property?: {
@@ -26,6 +27,11 @@ export default function ContractsPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "ENDED">(
+    "ALL"
+  );
 
   useEffect(() => {
     if (!loading && !user) {
@@ -63,7 +69,9 @@ export default function ContractsPage() {
         setHasMore(!!page.nextCursor);
       } catch (err: any) {
         if (!active) return;
-        setPageError(err?.message ?? "No se pudieron cargar contratos.");
+        console.error("Contracts:list", err);
+        recordDebugError("contracts:list", err);
+        setPageError("No se pudieron cargar contratos.");
       } finally {
         if (active) setPageLoading(false);
       }
@@ -101,6 +109,51 @@ export default function ContractsPage() {
     );
   }
 
+  const normalizeText = (value: string) => value.toLowerCase().trim();
+
+  const getShortId = (value: string) =>
+    value && value.length > 6 ? value.slice(0, 6) : value;
+
+  const getContractStatus = (contract: ContractRecordWithProperty) => {
+    const endValue = contract.dates?.endDate ?? "";
+    if (!endValue) return "ACTIVE";
+    const endDate = new Date(`${endValue}T00:00:00`);
+    if (!Number.isFinite(endDate.getTime())) return "ACTIVE";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return endDate < today ? "ENDED" : "ACTIVE";
+  };
+
+  const ownerOptions = useMemo(() => {
+    const owners = new Set<string>();
+    contracts.forEach((contract) => {
+      const name = contract.parties?.owner?.fullName?.trim();
+      if (name) owners.add(name);
+    });
+    return Array.from(owners).sort((a, b) => a.localeCompare(b));
+  }, [contracts]);
+
+  const filteredContracts = useMemo(() => {
+    const search = normalizeText(searchTerm);
+    return contracts.filter((contract) => {
+      const tenantName = contract.parties?.tenant?.fullName ?? "";
+      const ownerName = contract.parties?.owner?.fullName ?? "";
+      const address = contract.property?.address ?? "";
+      const shortId = getShortId(contract.id ?? "");
+      const status = getContractStatus(contract);
+      const ownerMatch =
+        ownerFilter === "ALL" || ownerName === ownerFilter;
+      const statusMatch =
+        statusFilter === "ALL" || statusFilter === status;
+      const searchMatch = !search
+        ? true
+        : [tenantName, ownerName, address, shortId]
+            .map((value) => normalizeText(String(value)))
+            .some((value) => value.includes(search));
+      return ownerMatch && statusMatch && searchMatch;
+    });
+  }, [contracts, ownerFilter, searchTerm, statusFilter]);
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -113,7 +166,7 @@ export default function ContractsPage() {
         </Link>
       </div>
       {pageError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           Ocurrio un error. Intenta de nuevo.
         </div>
       )}
@@ -126,7 +179,65 @@ export default function ContractsPage() {
           Reintentar
         </button>
       )}
-      {contracts.length === 0 ? (
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex min-w-[220px] flex-1 flex-col">
+          <label className="text-xs font-medium text-text-muted">Buscar</label>
+          <div className="relative mt-1">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Inquilino, propietario, direccion o ID corto"
+              className="w-full rounded-md border border-border bg-white py-2 pl-9 pr-3 text-sm text-text"
+            />
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </div>
+        </div>
+        <div className="flex min-w-[200px] flex-col">
+          <label className="text-xs font-medium text-text-muted">
+            Propietario
+          </label>
+          <select
+            value={ownerFilter}
+            onChange={(event) => setOwnerFilter(event.target.value)}
+            className="mt-1 rounded-md border border-border bg-white px-3 py-2 text-sm text-text"
+          >
+            <option value="ALL">Todos</option>
+            {ownerOptions.map((owner) => (
+              <option key={owner} value={owner}>
+                {owner}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex min-w-[160px] flex-col">
+          <label className="text-xs font-medium text-text-muted">Estado</label>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as "ALL" | "ACTIVE" | "ENDED")
+            }
+            className="mt-1 rounded-md border border-border bg-white px-3 py-2 text-sm text-text"
+          >
+            <option value="ALL">Todos</option>
+            <option value="ACTIVE">Activo</option>
+            <option value="ENDED">Finalizado</option>
+          </select>
+        </div>
+      </div>
+      {filteredContracts.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           <div>No hay contratos para mostrar.</div>
           <Link
@@ -138,7 +249,7 @@ export default function ContractsPage() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {contracts.map((contract) => (
+          {filteredContracts.map((contract) => (
             <li
               key={contract.id}
               className="flex items-center justify-between rounded-lg border border-border bg-surface p-4"
@@ -181,7 +292,9 @@ export default function ContractsPage() {
               setCursor(page.nextCursor);
               setHasMore(!!page.nextCursor);
             } catch (err: any) {
-              setMoreError(err?.message ?? "Could not load more contracts.");
+              console.error("Contracts:list:more", err);
+              recordDebugError("contracts:list:more", err);
+              setMoreError("No se pudo cargar mas.");
             } finally {
               setLoadingMore(false);
             }
@@ -192,7 +305,7 @@ export default function ContractsPage() {
         </button>
       )}
       {moreError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           No se pudo cargar mas. Intenta de nuevo.
         </div>
       )}

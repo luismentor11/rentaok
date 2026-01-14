@@ -132,14 +132,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     let active = true;
     const loadOfficeName = async () => {
       try {
-        const tenantRef = doc(db, "tenants", tenantId);
-        const snap = await getDoc(tenantRef);
+        const settingsRef = doc(db, "tenants", tenantId, "settings", "general");
+        const snap = await getDoc(settingsRef);
         if (!active) return;
-        const nextName =
-          typeof snap.data()?.displayName === "string"
-            ? snap.data()?.displayName
-            : null;
-        setOfficeName(nextName);
+        const rawName =
+          typeof snap.data()?.office?.officeName === "string"
+            ? snap.data()?.office?.officeName
+            : "";
+        const nextName = rawName.trim();
+        setOfficeName(nextName ? nextName : null);
       } catch {
         if (!active) return;
         setOfficeName(null);
@@ -226,9 +227,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <header className="sticky top-0 z-10 border-b border-border bg-surface/90 backdrop-blur">
             <div className="flex items-center justify-between px-6 py-4 text-sm text-text-muted">
               <span>
-                Panel operativo —{" "}
-                {officeName ??
-                  (tenantId ? `Oficina ${tenantId.slice(0, 6)}` : "Oficina")}
+                {officeName
+                  ? `Panel Operativo \u2014 ${officeName}`
+                  : "Panel Operativo"}
               </span>
               <div className="flex items-center gap-3">
                 <div className="hidden items-center gap-2 text-xs text-text-muted md:flex">
@@ -259,7 +260,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     : "PROD"}
                 </span>
                 <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-alt text-xs font-semibold text-text">
-                  {(officeName ?? tenantId ?? "OF")
+                  {(officeName ?? "PO")
                     .split(" ")
                     .filter(Boolean)
                     .map((part) => part[0])
@@ -295,11 +296,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <footer className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface/95 px-6 py-3 text-xs text-text-muted backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-col gap-1">
-          <div>RentaOK by Mentora®</div>
-          <div>© 2025 Mentora. Todos los derechos reservados.</div>
+          <div>RentaOK by Mentora</div>
+          <div>2025 Mentora. Todos los derechos reservados.</div>
           <div>
-            RentaOK es una herramienta de gestión administrativa. No realiza
-            cobranzas legales ni garantiza el pago. La información y los
+            RentaOK es una herramienta de gestion administrativa. No realiza
+            cobranzas legales ni garantiza el pago. La informacion y los
             registros generados tienen fines operativos y documentales.
           </div>
         </div>

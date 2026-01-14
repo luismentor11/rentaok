@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { db, storage } from "@/lib/firebase";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
+import { recordDebugError } from "@/lib/debug";
 type ServiceRecord = {
   id: string;
   tenantId: string;
@@ -104,7 +105,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      setTenantError("Necesitas iniciar sesion para ver los servicios.");
+      setTenantError("Necesitas iniciar sesion para ver servicios.");
       setTenantId(null);
       setTenantLoading(false);
       return;
@@ -118,12 +119,14 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
         const nextTenantId = profile?.tenantId ?? null;
         setTenantId(nextTenantId);
         if (!nextTenantId) {
-          setTenantError("No se encontro un tenant activo.");
+          setTenantError("No encontramos un tenant activo.");
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
-        setTenantError("No se pudo cargar el tenant.");
+        console.error("ServicesTab:tenant", err);
+        recordDebugError("services:tenant", err);
+        setTenantError("No pudimos cargar el tenant.");
         setTenantId(null);
       })
       .finally(() => {
@@ -147,11 +150,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
     setErrorText(null);
 
     const servicesRef = collection(db, "tenants", tenantId, "services");
-    const q = query(
-      servicesRef,
-      where("contractId", "==", contractId),
-      where("period", "==", period)
-    );
+    const q = query(servicesRef, where("contractId", "==", contractId));
 
     const unsubscribe = onSnapshot(
       q,
@@ -160,12 +159,14 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
           id: docSnap.id,
           ...(docSnap.data() as Omit<ServiceRecord, "id">),
         }));
-        setServices(sortByDueDate(next));
+        const filtered = next.filter((service) => service.period === period);
+        setServices(sortByDueDate(filtered));
         setLoading(false);
       },
       (err) => {
         console.error("ContractTab:Servicios ERROR", err);
-        setErrorText("Ocurrió un error. Intentá de nuevo.");
+        recordDebugError("services:query", err);
+        setErrorText("No pudimos cargar servicios. Proba de nuevo.");
         setLoading(false);
       }
     );
@@ -237,7 +238,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
       )}
       {errorText && (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-          Ocurrió un error. Intentá de nuevo.
+          {errorText}
         </div>
       )}
       {toastMessage && (
@@ -425,7 +426,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
                   setModalError(null);
                   try {
                     if (!tenantId) {
-                      setModalError("No se encontro un tenant activo.");
+                      setModalError("No encontramos un tenant activo.");
                       return;
                     }
                     let receiptUrl: string | undefined;
@@ -456,7 +457,9 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
                     setToastMessage("Servicio actualizado");
                     setTimeout(() => setToastMessage(null), 2500);
                   } catch (err: any) {
-                    setModalError("No se pudo guardar");
+                    console.error("ServicesTab:save", err);
+                    recordDebugError("services:save", err);
+                    setModalError("No pudimos guardar. Intenta de nuevo.");
                   } finally {
                     setSaving(false);
                   }

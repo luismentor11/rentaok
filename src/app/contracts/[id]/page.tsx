@@ -49,6 +49,12 @@ import {
 import { exportContractZip } from "@/lib/export/exportContractZip";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
 import { db } from "@/lib/firebase";
+import {
+  getGuaranteeTypeLabel,
+  guaranteeTypeLabels,
+  normalizeGuaranteeType,
+} from "@/lib/model/v1";
+import { recordDebugError } from "@/lib/debug";
 
 const tabOptions = [
   { key: "resumen", label: "Resumen" },
@@ -223,6 +229,7 @@ export default function ContractDetailPage({ params }: PageProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -264,7 +271,9 @@ export default function ContractDetailPage({ params }: PageProps) {
         setContract(data);
       } catch (err: any) {
         if (!active) return;
-        setError(err?.message ?? "No se pudo cargar el contrato.");
+        console.error("ContractDetail:load", err);
+        recordDebugError("contracts:detail", err);
+        setError("No pudimos cargar el contrato.");
       } finally {
         if (active) setPageLoading(false);
       }
@@ -284,6 +293,11 @@ export default function ContractDetailPage({ params }: PageProps) {
   const formatEventAt = (value: EventRecord["at"]) => {
     const date = toDateSafe(value);
     return date ? date.toLocaleString() : "-";
+  };
+
+  const formatAmount = (value?: number) => {
+    if (!Number.isFinite(Number(value))) return "-";
+    return Number(value).toLocaleString("es-AR");
   };
 
   const getPeriodSortKey = (value: InstallmentRecord["period"]) => {
@@ -326,7 +340,8 @@ export default function ContractDetailPage({ params }: PageProps) {
       setInstallments(nextInstallments);
     } catch (err: any) {
       console.error("ContractTab:Pagos ERROR", err);
-      setInstallmentsErrorText("Ocurrió un error. Intentá de nuevo.");
+      recordDebugError("contracts:detail:installments", err);
+      setInstallmentsErrorText("No pudimos cargar Canon/Mes. Proba de nuevo.");
       setInstallments([]);
     } finally {
       setInstallmentsLoading(false);
@@ -340,9 +355,11 @@ export default function ContractDetailPage({ params }: PageProps) {
       const list = await listInstallmentItems(tenant, installmentId);
       setInstallmentItems((prev) => ({ ...prev, [installmentId]: list }));
     } catch (err: any) {
+      console.error("ContractTab:items", err);
+      recordDebugError("contracts:detail:items", err);
       setInstallmentItemsError((prev) => ({
         ...prev,
-        [installmentId]: err?.message ?? "No se pudieron cargar items.",
+        [installmentId]: "No pudimos cargar items. Proba de nuevo.",
       }));
     } finally {
       setInstallmentItemsLoading((prev) => ({ ...prev, [installmentId]: false }));
@@ -356,9 +373,9 @@ export default function ContractDetailPage({ params }: PageProps) {
       const list = await listContractEvents(tenant, contractId);
       setContractEvents(list);
     } catch (err: any) {
-      setContractEventsError(
-        err?.message ?? "No se pudieron cargar eventos."
-      );
+      console.error("ContractTab:events", err);
+      recordDebugError("contracts:detail:events", err);
+      setContractEventsError("No pudimos cargar eventos. Proba de nuevo.");
     } finally {
       setContractEventsLoading(false);
     }
@@ -489,42 +506,24 @@ export default function ContractDetailPage({ params }: PageProps) {
 
   if (invalidContractId) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        <div>Contrato inválido.</div>
-        <Link
-          href="/contracts"
-          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
-        >
-          Volver a contratos
-        </Link>
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+        <div>Contrato invalido.</div>
       </div>
     );
   }
 
   if (contractNotFound) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
         <div>Contrato no encontrado.</div>
-        <Link
-          href="/contracts"
-          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
-        >
-          Volver a contratos
-        </Link>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        <div>Ocurrió un error. Intentá de nuevo.</div>
-        <Link
-          href="/contracts"
-          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
-        >
-          Volver a contratos
-        </Link>
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+        <div>No pudimos cargar el contrato. Proba de nuevo.</div>
       </div>
     );
   }
@@ -539,14 +538,8 @@ export default function ContractDetailPage({ params }: PageProps) {
 
   if (!contract) {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
         <div>Contrato no encontrado.</div>
-        <Link
-          href="/contracts"
-          className="mt-2 inline-flex text-xs font-medium text-red-700 hover:text-red-900"
-        >
-          Volver a contratos
-        </Link>
       </div>
     );
   }
@@ -560,16 +553,27 @@ export default function ContractDetailPage({ params }: PageProps) {
   const contractStartDate = contract.dates?.startDate ?? "-";
   const contractEndDate = contract.dates?.endDate ?? "-";
   const contractDueDay = contract.dueDay ?? "-";
-  const contractRentAmount = contract.rentAmount ?? "-";
-  const contractGuaranteeType = (contract.guaranteeType ?? "-") as string;
+  const contractRentAmount = formatAmount(contract.rentAmount);
+  const contractDepositAmount = formatAmount(contract.depositAmount);
+  const normalizedGuaranteeType = normalizeGuaranteeType(
+    contract.guaranteeType
+  );
+  const contractGuaranteeLabel = getGuaranteeTypeLabel(
+    contract.guaranteeType
+  );
   const contractGuaranteeDetails =
     (contract as ContractRecordWithProperty & { guaranteeDetails?: string })
       .guaranteeDetails ?? "";
 
-  const isGuarantorsGuarantee =
-    contractGuaranteeType === "GARANTES" ||
-    contractGuaranteeType === "GARANTES_PERSONAS";
-  const isCaucionGuarantee = contractGuaranteeType === "CAUCION";
+  const isGuarantorsGuarantee = normalizedGuaranteeType === "GARANTES";
+  const isCaucionGuarantee = normalizedGuaranteeType === "CAUCION";
+  const isConvenioGuarantee =
+    normalizedGuaranteeType === "CONVENIO_DESALOJO";
+  const guaranteeDetailFallback =
+    contractGuaranteeDetails ||
+    (isCaucionGuarantee && contractDepositAmount !== "-"
+      ? `Deposito ${contractDepositAmount}`
+      : "");
 
   const openEditModal = () => {
     setEditError(null);
@@ -598,10 +602,7 @@ export default function ContractDetailPage({ params }: PageProps) {
           whatsapp: contract.parties?.tenant?.whatsapp ?? "",
         },
       },
-      guaranteeType:
-        contractGuaranteeType === "GARANTES"
-          ? "GARANTES_PERSONAS"
-          : contractGuaranteeType,
+      guaranteeType: normalizedGuaranteeType,
       guaranteeDetails: contractGuaranteeDetails,
     });
     setEditModalOpen(true);
@@ -609,6 +610,7 @@ export default function ContractDetailPage({ params }: PageProps) {
 
   const openDeleteModal = () => {
     setDeleteError(null);
+    setDeleteReason("");
     setDeleteModalOpen(true);
   };
 
@@ -631,8 +633,10 @@ export default function ContractDetailPage({ params }: PageProps) {
           : prev
       );
     } catch (err: any) {
+      console.error("ContractTab:notifications", err);
+      recordDebugError("contracts:detail:notifications", err);
       setContractNotificationError(
-        err?.message ?? "No se pudo guardar la configuracion."
+        "No pudimos guardar la configuracion. Proba de nuevo."
       );
     } finally {
       setContractNotificationSaving(false);
@@ -821,7 +825,11 @@ export default function ContractDetailPage({ params }: PageProps) {
                   </div>
                   <div>
                     <span className="font-medium text-zinc-900">Deposito:</span>{" "}
-                    {contract.depositAmount ?? "-"}
+                    {contractDepositAmount}
+                  </div>
+                  <div>
+                    <span className="font-medium text-zinc-900">Creado por:</span>{" "}
+                    {contract.createdByUid ?? "-"}
                   </div>
                 </div>
                 <div className="text-sm">
@@ -846,6 +854,9 @@ export default function ContractDetailPage({ params }: PageProps) {
                   {contractTitle}
                 </div>
                 <div className="text-xs text-zinc-500">{contractAddress}</div>
+                <div className="text-xs text-zinc-500">
+                  ID: {contract.property?.id ?? "-"}
+                </div>
               </div>
             </div>
 
@@ -854,6 +865,10 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <div className="text-xs font-semibold text-zinc-500">Locatario</div>
                 <div className="text-sm font-medium text-zinc-900">
                   {contract.parties?.tenant?.fullName ?? "-"}
+                </div>
+                <div className="text-xs text-zinc-500">
+                  DNI: {contract.parties?.tenant?.dni ?? "-"} |{" "}
+                  {contract.parties?.tenant?.address ?? "Sin direccion"}
                 </div>
                 <div className="text-xs text-zinc-500">
                   {contract.parties?.tenant?.email ?? "Sin email"} |{" "}
@@ -866,6 +881,10 @@ export default function ContractDetailPage({ params }: PageProps) {
                   {contract.parties?.owner?.fullName ?? "-"}
                 </div>
                 <div className="text-xs text-zinc-500">
+                  DNI: {contract.parties?.owner?.dni ?? "-"} |{" "}
+                  {contract.parties?.owner?.address ?? "Sin direccion"}
+                </div>
+                <div className="text-xs text-zinc-500">
                   {contract.parties?.owner?.email ?? "Sin email"} |{" "}
                   {contract.parties?.owner?.whatsapp ?? "Sin WhatsApp"}
                 </div>
@@ -876,7 +895,7 @@ export default function ContractDetailPage({ params }: PageProps) {
               <div className="text-xs font-semibold text-zinc-500">Garantia</div>
               <div className="text-sm text-zinc-600">
                 <span className="font-medium text-zinc-900">Tipo:</span>{" "}
-                {contractGuaranteeType ?? "-"}
+                {contractGuaranteeLabel}
               </div>
               {isGuarantorsGuarantee ? (
                 guarantors.length ? (
@@ -903,17 +922,13 @@ export default function ContractDetailPage({ params }: PageProps) {
                 ) : (
                   <div className="text-xs text-zinc-500">(sin garantes)</div>
                 )
-              ) : isCaucionGuarantee ? (
+              ) : guaranteeDetailFallback ? (
                 <div className="text-sm text-zinc-600">
                   <span className="font-medium text-zinc-900">Detalle:</span>{" "}
-                  {contractGuaranteeDetails ||
-                    `Deposito ${contract.depositAmount ?? "-"}`}
+                  {guaranteeDetailFallback}
                 </div>
-              ) : contractGuaranteeDetails ? (
-                <div className="text-sm text-zinc-600">
-                  <span className="font-medium text-zinc-900">Detalle:</span>{" "}
-                  {contractGuaranteeDetails}
-                </div>
+              ) : isConvenioGuarantee ? (
+                <div className="text-xs text-zinc-500">Sin detalle</div>
               ) : (
                 <div className="text-xs text-zinc-500">Sin detalle</div>
               )}
@@ -924,14 +939,14 @@ export default function ContractDetailPage({ params }: PageProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-sm text-zinc-600">
-                Cuotas generadas por mes.
+                Canon/Mes generado por periodo.
               </div>
               <button
                 type="button"
                 onClick={async () => {
                   if (!tenantId || !contract) return;
                   const ok = window.confirm(
-                    "Esto creara cuotas mensuales para este contrato."
+                    "Esto creara Canon/Mes para este contrato."
                   );
                   if (!ok) return;
                   setInstallmentsErrorText(null);
@@ -939,23 +954,24 @@ export default function ContractDetailPage({ params }: PageProps) {
                   try {
                     await generateInstallmentsForContract(tenantId, contract);
                     await loadInstallments(tenantId, contract.id);
-                } catch (err: any) {
-                  console.error("ContractTab:Pagos ERROR", err);
-                  setInstallmentsErrorText(
-                    "Ocurrió un error. Intentá de nuevo."
-                  );
-                } finally {
-                  setInstallmentsLoading(false);
-                }
+                  } catch (err: any) {
+                    console.error("ContractTab:Pagos ERROR", err);
+                    recordDebugError("contracts:detail:installments:create", err);
+                    setInstallmentsErrorText(
+                      "No pudimos generar Canon/Mes. Proba de nuevo."
+                    );
+                  } finally {
+                    setInstallmentsLoading(false);
+                  }
                 }}
                 className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100"
               >
-                Generar cuotas
+                Generar Canon/Mes
               </button>
             </div>
             {installmentsErrorText && (
               <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-                Ocurrió un error. Intentá de nuevo.
+                {installmentsErrorText}
               </div>
             )}
             {installmentsLoading ? (
@@ -964,7 +980,7 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
             ) : installments.length === 0 ? (
               <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
-                No hay pagos para mostrar.
+                No hay periodos para mostrar.
               </div>
             ) : (
               <div className="space-y-2">
@@ -1017,7 +1033,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                           </div>
                           <div className="text-[11px] text-zinc-500">
                             {hasOverride
-                              ? "Override activo para esta cuota."
+                              ? "Override activo para este periodo."
                               : "Heredando configuracion del contrato."}
                           </div>
                         </div>
@@ -1051,8 +1067,12 @@ export default function ContractDetailPage({ params }: PageProps) {
                                 );
                               } catch (err: any) {
                                 console.error("ContractTab:Pagos ERROR", err);
+                                recordDebugError(
+                                  "contracts:detail:installments:notify",
+                                  err
+                                );
                                 setInstallmentsErrorText(
-                                  "Ocurrió un error. Intentá de nuevo."
+                                  "No pudimos actualizar la notificacion. Proba de nuevo."
                                 );
                               } finally {
                                 setInstallmentActions((prev) => ({
@@ -1065,7 +1085,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                               }
                             }}
                           />
-                          Notificar esta cuota
+                          Notificar este periodo
                         </label>
                       </div>
                       {!contractNotificationsEnabled && !hasOverride && (
@@ -1102,7 +1122,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                               return;
                             }
                             const ok = window.confirm(
-                              "Esto marca la cuota como PAGADA sin comprobante. ¿Continuar?"
+                              "Esto marca el periodo como PAGADO sin comprobante. Continuar?"
                             );
                             if (!ok) return;
                             setInstallmentActions((prev) => ({
@@ -1125,8 +1145,12 @@ export default function ContractDetailPage({ params }: PageProps) {
                               );
                             } catch (err: any) {
                               console.error("ContractTab:Pagos ERROR", err);
+                              recordDebugError(
+                                "contracts:detail:installments:markPaid",
+                                err
+                              );
                               setInstallmentsErrorText(
-                                "Ocurrió un error. Intentá de nuevo."
+                                "No pudimos marcar el periodo. Proba de nuevo."
                               );
                             } finally {
                               setInstallmentActions((prev) => ({
@@ -1158,7 +1182,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                         </button>
                       </div>
                       {installmentItemsError[installment.id] && (
-                        <div className="mt-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                        <div className="mt-2 rounded border border-zinc-200 bg-surface px-2 py-1 text-xs text-zinc-600">
                           {installmentItemsError[installment.id]}
                         </div>
                       )}
@@ -1226,11 +1250,12 @@ export default function ContractDetailPage({ params }: PageProps) {
                                               installment.contractId
                                             );
                                           } catch (err: any) {
+                                            console.error("ContractTab:items:delete", err);
+                                            recordDebugError("contracts:detail:items:delete", err);
                                             setInstallmentItemsError((prev) => ({
                                               ...prev,
                                               [installment.id]:
-                                                err?.message ??
-                                                "No se pudo borrar el item.",
+                                                "No pudimos borrar el item. Proba de nuevo.",
                                             }));
                                           }
                                         }}
@@ -1343,7 +1368,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-zinc-700">
-                    Asociar a cuota (opcional)
+                    Asociar a periodo (opcional)
                   </label>
                   <select
                     value={eventInstallmentId}
@@ -1442,8 +1467,10 @@ export default function ContractDetailPage({ params }: PageProps) {
                       await loadContractEvents(tenantId, contract.id);
                       resetEventForm();
                     } catch (err: any) {
+                      console.error("ContractTab:events:save", err);
+                      recordDebugError("contracts:detail:events:save", err);
                       setEventError(
-                        err?.message ?? "No se pudo guardar el evento."
+                        "No pudimos guardar el evento. Proba de nuevo."
                       );
                     } finally {
                       setEventSubmitting(false);
@@ -1460,8 +1487,8 @@ export default function ContractDetailPage({ params }: PageProps) {
                 Eventos
               </div>
               {contractEventsError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  Ocurrió un error. Intentá de nuevo.
+                <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                  {contractEventsError}
                 </div>
               )}
               {contractEventsLoading ? (
@@ -1541,8 +1568,8 @@ export default function ContractDetailPage({ params }: PageProps) {
               Descarga un ZIP con datos y adjuntos del contrato.
             </div>
             {exportZipError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                Ocurrió un error. Intentá de nuevo.
+              <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
+                {exportZipError}
               </div>
             )}
             {exportZipSuccess && (
@@ -1562,8 +1589,10 @@ export default function ContractDetailPage({ params }: PageProps) {
                   await exportContractZip(tenantId, contract.id);
                   setExportZipSuccess("ZIP generado.");
                 } catch (err: any) {
+                  console.error("ContractTab:export", err);
+                  recordDebugError("contracts:detail:export", err);
                   setExportZipError(
-                    err?.message ?? "No se pudo exportar el ZIP."
+                    "No pudimos exportar el ZIP. Proba de nuevo."
                   );
                 } finally {
                   setExportingZip(false);
@@ -1691,14 +1720,16 @@ export default function ContractDetailPage({ params }: PageProps) {
                       }
                     );
                     setMessageModalOpen(false);
-                  } catch (err: any) {
-                    setMessageError(
-                      err?.message ?? "No se pudo registrar el mensaje."
-                    );
-                  } finally {
-                    setMessageSubmitting(false);
-                  }
-                }}
+                    } catch (err: any) {
+                      console.error("ContractTab:message", err);
+                      recordDebugError("contracts:detail:message", err);
+                      setMessageError(
+                        "No pudimos registrar el mensaje. Proba de nuevo."
+                      );
+                    } finally {
+                      setMessageSubmitting(false);
+                    }
+                  }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {messageSubmitting ? "Guardando..." : "Registrar mensaje"}
@@ -1882,14 +1913,16 @@ export default function ContractDetailPage({ params }: PageProps) {
                     await loadInstallments(tenantId, paymentInstallment.contractId);
                     setPaymentModalOpen(false);
                     setPaymentInstallment(null);
-                  } catch (err: any) {
-                    setPaymentError(
-                      err?.message ?? "No se pudo registrar el pago."
-                    );
-                  } finally {
-                    setPaymentSubmitting(false);
-                  }
-                }}
+                    } catch (err: any) {
+                      console.error("ContractTab:payment", err);
+                      recordDebugError("contracts:detail:payment", err);
+                      setPaymentError(
+                        "No pudimos registrar el pago. Proba de nuevo."
+                      );
+                    } finally {
+                      setPaymentSubmitting(false);
+                    }
+                  }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {paymentSubmitting ? "Guardando..." : "Guardar"}
@@ -2020,14 +2053,16 @@ export default function ContractDetailPage({ params }: PageProps) {
                     setItemModalOpen(false);
                     setItemInstallment(null);
                     setItemEditing(null);
-                  } catch (err: any) {
-                    setItemError(
-                      err?.message ?? "No se pudo guardar el item."
-                    );
-                  } finally {
-                    setItemSubmitting(false);
-                  }
-                }}
+                    } catch (err: any) {
+                      console.error("ContractTab:item", err);
+                      recordDebugError("contracts:detail:item", err);
+                      setItemError(
+                        "No pudimos guardar el item. Proba de nuevo."
+                      );
+                    } finally {
+                      setItemSubmitting(false);
+                    }
+                  }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {itemSubmitting ? "Guardando..." : "Guardar"}
@@ -2112,8 +2147,10 @@ export default function ContractDetailPage({ params }: PageProps) {
                     setLateFeeModalOpen(false);
                     setLateFeeInstallment(null);
                   } catch (err: any) {
+                    console.error("ContractTab:lateFee", err);
+                    recordDebugError("contracts:detail:lateFee", err);
                     setLateFeeError(
-                      err?.message ?? "No se pudo agregar la mora."
+                      "No pudimos agregar la mora. Proba de nuevo."
                     );
                   } finally {
                     setLateFeeSubmitting(false);
@@ -2429,10 +2466,12 @@ export default function ContractDetailPage({ params }: PageProps) {
                   }
                   className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
                 >
-                  <option value="GARANTES_PERSONAS">Garantes</option>
-                  <option value="CAUCION">Caucion</option>
-                  <option value="CONVENIO_DESALOJO">Convenio desalojo</option>
-                  <option value="OTRO">Otro</option>
+                  <option value="GARANTES">{guaranteeTypeLabels.GARANTES}</option>
+                  <option value="CAUCION">{guaranteeTypeLabels.CAUCION}</option>
+                  <option value="CONVENIO_DESALOJO">
+                    {guaranteeTypeLabels.CONVENIO_DESALOJO}
+                  </option>
+                  <option value="OTRO">{guaranteeTypeLabels.OTRO}</option>
                 </select>
               </div>
               <div>
@@ -2528,7 +2567,7 @@ export default function ContractDetailPage({ params }: PageProps) {
               </button>
             </div>
             <p className="mt-3 text-sm text-zinc-600">
-              Esto eliminará el contrato y lo ocultará del listado. Podés
+              Esto elimina el contrato y lo oculta del listado. Podes
               restaurarlo desde la base si hace falta.
             </p>
             {deleteError && (
@@ -2536,6 +2575,18 @@ export default function ContractDetailPage({ params }: PageProps) {
                 {deleteError}
               </div>
             )}
+            <div className="mt-4">
+              <label className="block text-xs font-medium text-zinc-700">
+                Motivo (opcional)
+              </label>
+              <input
+                type="text"
+                value={deleteReason}
+                onChange={(event) => setDeleteReason(event.target.value)}
+                className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+                placeholder="Ej: finalizado"
+              />
+            </div>
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -2553,13 +2604,17 @@ export default function ContractDetailPage({ params }: PageProps) {
                   setDeleteSaving(true);
                   setDeleteError(null);
                   try {
+                    const reasonValue = deleteReason.trim();
                     await updateContract(tenantId, contract.id, {
                       status: "deleted",
                       deletedAt: serverTimestamp(),
                       deletedByUid: user.uid,
+                      ...(reasonValue ? { deleteReason: reasonValue } : {}),
                     } as Partial<ContractRecordWithProperty>);
                     router.replace("/contracts");
                   } catch (err) {
+                    console.error("ContractDetail:delete", err);
+                    recordDebugError("contracts:detail:delete", err);
                     setDeleteError("No se pudo eliminar el contrato.");
                   } finally {
                     setDeleteSaving(false);

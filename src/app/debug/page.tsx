@@ -16,6 +16,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { readDebugError, type DebugErrorEntry } from "@/lib/debug";
 
 type TestState = {
   status: "idle" | "running" | "ok" | "error";
@@ -36,6 +37,7 @@ export default function DebugPage() {
   const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
   const [profileTenantId, setProfileTenantId] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<DebugErrorEntry | null>(null);
   const [tests, setTests] = useState<{
     contracts: TestState;
     installments: TestState;
@@ -94,6 +96,10 @@ export default function DebugPage() {
       active = false;
     };
   }, [user]);
+
+  useEffect(() => {
+    setLastError(readDebugError());
+  }, []);
 
   const runTest = async (
     key: keyof typeof tests,
@@ -171,6 +177,41 @@ export default function DebugPage() {
         </div>
         {resolveError && (
           <div className="text-xs text-red-600">Error: {resolveError}</div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-2 text-sm text-zinc-700">
+        <div className="text-sm font-semibold text-zinc-900">Notas</div>
+        <div>Rules: revisar `firestore.rules` desplegadas.</div>
+        <div>Indexes: revisar `firestore.indexes.json` en el repo.</div>
+        <div>Consultas criticas: evitar indices compuestos.</div>
+      </div>
+
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-2 text-sm text-zinc-700">
+        <div className="text-sm font-semibold text-zinc-900">Ultimo error</div>
+        {lastError ? (
+          <div className="space-y-1 text-xs text-zinc-600">
+            <div>
+              <span className="font-medium text-zinc-900">Scope:</span>{" "}
+              {lastError.scope}
+            </div>
+            <div>
+              <span className="font-medium text-zinc-900">At:</span>{" "}
+              {lastError.at}
+            </div>
+            <div>
+              <span className="font-medium text-zinc-900">Message:</span>{" "}
+              {lastError.message}
+            </div>
+            {lastError.code && (
+              <div>
+                <span className="font-medium text-zinc-900">Code:</span>{" "}
+                {lastError.code}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-xs text-zinc-600">Sin errores recientes.</div>
         )}
       </div>
 
