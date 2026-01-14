@@ -58,25 +58,44 @@ const emptyResponse = (warnings?: string[]): AiContractImportResponse => ({
 
 type ParsedPdf = { text: string; pages?: number };
 
-const ensureDomMatrix = async () => {
-  if (typeof (globalThis as { DOMMatrix?: unknown }).DOMMatrix === "undefined") {
-    const mod = await import("dommatrix");
-    const DOMMatrixCtor =
-      (mod as { DOMMatrix?: unknown }).DOMMatrix ??
-      (mod as { default?: unknown }).default;
-    if (DOMMatrixCtor) {
-      (globalThis as { DOMMatrix?: unknown }).DOMMatrix = DOMMatrixCtor;
-    }
-  }
-};
-
 const parsePdfText = async (buffer: Buffer): Promise<ParsedPdf> => {
-  await ensureDomMatrix();
-  const mod = await import("pdf-parse");
-  const pdfParse = mod as unknown as (
-    b: Buffer
-  ) => Promise<{ text?: string; numpages?: number }>;
-  const parsed = await pdfParse(buffer);
+  if (typeof (globalThis as { navigator?: unknown }).navigator === "undefined") {
+    (globalThis as { navigator?: { userAgent: string } }).navigator = {
+      userAgent: "node",
+    };
+  }
+  const mod = await import("pdfreader");
+  const PdfReaderCtor = mod.PdfReader as new () => {
+    parseBuffer: (
+      data: Buffer,
+      cb: (err: Error | null, item: { text?: string; page?: number } | null) => void
+    ) => void;
+  };
+  const textChunks: string[] = [];
+  let maxPage = 0;
+  await new Promise<void>((resolve, reject) => {
+    new PdfReaderCtor().parseBuffer(buffer, (err, item) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      if (!item) {
+        resolve();
+        return;
+      }
+      if (typeof item.page === "number") {
+        maxPage = Math.max(maxPage, item.page);
+        return;
+      }
+      if (typeof item.text === "string") {
+        textChunks.push(item.text);
+      }
+    });
+  });
+  const parsed = {
+    text: textChunks.join("\n"),
+    numpages: maxPage,
+  };
   return {
     text: typeof parsed?.text === "string" ? parsed.text : "",
     pages: typeof parsed?.numpages === "number" ? parsed.numpages : undefined,

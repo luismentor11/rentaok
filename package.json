@@ -13,18 +13,16 @@
     "node": "20"
   },
   "dependencies": {
-    "dommatrix": "^1.0.3",
     "firebase": "^12.7.0",
     "jszip": "^3.10.1",
     "next": "16.1.1",
-    "pdf-parse": "^2.4.5",
+    "pdfreader": "^3.0.8",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
