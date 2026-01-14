@@ -58,7 +58,20 @@ const emptyResponse = (warnings?: string[]): AiContractImportResponse => ({
 
 type ParsedPdf = { text: string; pages?: number };
 
+const ensureDomMatrix = async () => {
+  if (typeof (globalThis as { DOMMatrix?: unknown }).DOMMatrix === "undefined") {
+    const mod = await import("dommatrix");
+    const DOMMatrixCtor =
+      (mod as { DOMMatrix?: unknown }).DOMMatrix ??
+      (mod as { default?: unknown }).default;
+    if (DOMMatrixCtor) {
+      (globalThis as { DOMMatrix?: unknown }).DOMMatrix = DOMMatrixCtor;
+    }
+  }
+};
+
 const parsePdfText = async (buffer: Buffer): Promise<ParsedPdf> => {
+  await ensureDomMatrix();
   const mod = await import("pdf-parse");
   const pdfParse = mod as unknown as (
     b: Buffer
