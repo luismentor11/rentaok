@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, getDocs, limit, query, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { listContracts, ContractRecord } from "@/lib/db/contracts";
@@ -22,6 +22,7 @@ import {
   buildTenantNotificationMessage,
   getNotificationDueToday,
 } from "@/lib/db/notifications";
+import { recordDebugError } from "@/lib/debug";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
 import { db } from "@/lib/firebase";
 
@@ -42,6 +43,160 @@ const additionalItemTypes: { value: InstallmentItemType; label: string }[] = [
   { value: "DESCUENTO", label: "Descuento" },
 ];
 
+type PaymentMirrorRecord = {
+  id: string;
+  installmentId?: string;
+  contractId?: string;
+  paidAt?: unknown;
+  metadata?: { overpay?: number };
+};
+
+type AlertItem = {
+  type: string;
+  title: string;
+  detail: string;
+  href: string;
+  priority: number;
+  createdAt: number;
+};
+
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
+
+const buildAlerts = (params: {
+  installments: InstallmentRecord[];
+  contractsById: Record<string, ContractRecord>;
+  payments: PaymentMirrorRecord[];
+}) => {
+  const { installments, contractsById, payments } = params;
+  const today = new Date();
+  const nextWeek = new Date(today);
+  nextWeek.setDate(today.getDate() + 7);
+  const overpayInstallments = new Set<string>();
+  payments.forEach((payment) => {
+    if (payment.installmentId && (payment.metadata?.overpay ?? 0) > 0) {
+      overpayInstallments.add(payment.installmentId);
+    }
+  });
+
+  const alerts: AlertItem[] = [];
+
+  installments.forEach((installment) => {
+    const dueDate = toDateSafe(installment.dueDate);
+    const dueTime = dueDate ? dueDate.getTime() : Date.now();
+    const contractId = installment.contractId ?? "";
+    const contract = contractId ? contractsById[contractId] : undefined;
+    const contractLabel =
+      contract?.property?.title ?? contract?.property?.address ?? "Contrato";
+    const periodLabel = installment.period ? `Periodo ${installment.period}` : "Periodo";
+    const href = contractId ? `/contracts/${contractId}` : "/contracts";
+    const detail = `${contractLabel} • ${periodLabel}`;
+
+    const isOverdue =
+      installment.status === "VENCIDA" ||
+      (dueDate ? dueDate < today : false) ||
+      false;
+    if (isOverdue && Number(installment.totals?.due ?? 0) > 0) {
+      alerts.push({
+        type: "VENCIDA",
+        title: "Cuota vencida",
+        detail,
+        href,
+        priority: 1,
+        createdAt: dueTime,
+      });
+    }
+
+    if (dueDate && (installment.status === "VENCE_HOY" || isSameDay(dueDate, today))) {
+      alerts.push({
+        type: "VENCE_HOY",
+        title: "Vence hoy",
+        detail,
+        href,
+        priority: 2,
+        createdAt: dueTime,
+      });
+    }
+
+    if (
+      dueDate &&
+      installment.status === "POR_VENCER" &&
+      dueDate <= nextWeek &&
+      dueDate >= today
+    ) {
+      alerts.push({
+        type: "POR_VENCER",
+        title: "Vence en los próximos días",
+        detail,
+        href,
+        priority: 5,
+        createdAt: dueTime,
+      });
+    }
+
+    if (installment.status === "PARCIAL" && Number(installment.totals?.due ?? 0) > 0) {
+      alerts.push({
+        type: "PARCIAL",
+        title: "Pago parcial pendiente",
+        detail,
+        href,
+        priority: 3,
+        createdAt: dueTime,
+      });
+    }
+
+    if (installment.status === "EN_ACUERDO") {
+      alerts.push({
+        type: "EN_ACUERDO",
+        title: "Acuerdo activo",
+        detail,
+        href,
+        priority: 4,
+        createdAt: dueTime,
+      });
+    }
+
+    if (installment.paymentFlags?.hasUnverifiedPayments) {
+      alerts.push({
+        type: "SIN_RECIBO",
+        title: "Pago sin recibo",
+        detail,
+        href,
+        priority: 6,
+        createdAt: dueTime,
+      });
+    }
+
+    if (installment.id && overpayInstallments.has(installment.id)) {
+      alerts.push({
+        type: "OVERPAY",
+        title: "Pago con excedente",
+        detail,
+        href,
+        priority: 7,
+        createdAt: dueTime,
+      });
+    }
+
+    if (contractId && !contractsById[contractId]) {
+      alerts.push({
+        type: "DATOS",
+        title: "Datos incompletos",
+        detail,
+        href,
+        priority: 8,
+        createdAt: dueTime,
+      });
+    }
+  });
+
+  return alerts
+    .sort((a, b) => a.priority - b.priority || a.createdAt - b.createdAt)
+    .slice(0, 10);
+};
+
 export default function OperationalDashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -58,6 +213,7 @@ export default function OperationalDashboardPage() {
   const [installments, setInstallments] = useState<InstallmentRecord[]>([]);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
   const [installmentsError, setInstallmentsError] = useState<string | null>(null);
+  const [payments, setPayments] = useState<PaymentMirrorRecord[]>([]);
   const [actionLoading, setActionLoading] = useState<
     Record<string, { agreement?: boolean }>
   >({});
@@ -153,6 +309,8 @@ export default function OperationalDashboardPage() {
       setInstallments(list);
     } catch (err: any) {
       const message = err?.message ?? "No se pudieron cargar cuotas.";
+      console.error("Dashboard:installments", err);
+      recordDebugError("dashboard:installments", err);
       setInstallmentsError(message);
       try {
         localStorage.setItem(
@@ -174,6 +332,33 @@ export default function OperationalDashboardPage() {
     if (!tenantId) return;
     loadInstallments(tenantId);
   }, [tenantId, statusFilter]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let active = true;
+    const loadPayments = async () => {
+      try {
+        const paymentsRef = collection(db, "tenants", tenantId, "payments");
+        const snap = await getDocs(query(paymentsRef, limit(200)));
+        if (!active) return;
+        setPayments(
+          snap.docs.map((docSnap) => ({
+            id: docSnap.id,
+            ...(docSnap.data() as Omit<PaymentMirrorRecord, "id">),
+          }))
+        );
+      } catch (err) {
+        console.error("Dashboard:payments", err);
+        recordDebugError("dashboard:payments", err);
+        if (!active) return;
+        setPayments([]);
+      }
+    };
+    loadPayments();
+    return () => {
+      active = false;
+    };
+  }, [tenantId]);
 
   const toDateTimeInputValue = (date: Date) => {
     const pad = (value: number) => String(value).padStart(2, "0");
@@ -215,6 +400,20 @@ export default function OperationalDashboardPage() {
       return haystack.includes(term);
     });
   }, [installments, searchTerm]);
+
+  const alertsError = installmentsError
+    ? "No pudimos cargar próximas acciones. Reintentá."
+    : null;
+
+  const alerts = useMemo(() => {
+    try {
+      return buildAlerts({ installments, contractsById, payments });
+    } catch (err) {
+      console.error("Dashboard:alerts", err);
+      recordDebugError("dashboard:alerts", err);
+      return [];
+    }
+  }, [installments, contractsById, payments]);
 
   const kpis = useMemo(() => {
     const counts = filteredInstallments.reduce(
@@ -407,6 +606,30 @@ export default function OperationalDashboardPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="text-sm font-semibold text-text">Próximas acciones</div>
+        {alertsError ? (
+          <div className="mt-2 text-sm text-text-muted">{alertsError}</div>
+        ) : alerts.length === 0 ? (
+          <div className="mt-2 text-sm text-text-muted">
+            No hay acciones urgentes.
+          </div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {alerts.map((alert, index) => (
+              <Link
+                key={`${alert.type}-${alert.href}-${index}`}
+                href={alert.href}
+                className="flex flex-col gap-1 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text transition hover:bg-surface"
+              >
+                <div className="font-semibold">{alert.title}</div>
+                <div className="text-xs text-text-muted">{alert.detail}</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
