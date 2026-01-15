@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   collection,
@@ -140,7 +140,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
   }, [authLoading, user]);
 
   useEffect(() => {
-    if (!contractId || !period || tenantLoading) return;
+    if (!contractId || tenantLoading) return;
     if (!tenantId) {
       setServices([]);
       setLoading(false);
@@ -159,20 +159,25 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
           id: docSnap.id,
           ...(docSnap.data() as Omit<ServiceRecord, "id">),
         }));
-        const filtered = next.filter((service) => service.period === period);
-        setServices(sortByDueDate(filtered));
+        setServices(next);
         setLoading(false);
       },
       (err) => {
-        console.error("ContractTab:Servicios ERROR", err);
+        console.error("ServicesTab:query", err);
         recordDebugError("services:query", err);
-        setErrorText("No pudimos cargar servicios. Proba de nuevo.");
+        setErrorText("No pudimos cargar servicios. Reintentá.");
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [contractId, period, tenantId, tenantLoading]);
+  }, [contractId, tenantId, tenantLoading]);
+
+  const filteredServices = useMemo(() => {
+    if (!period) return [];
+    const filtered = services.filter((service) => service.period === period);
+    return sortByDueDate(filtered);
+  }, [period, services]);
 
   const isOwner = role === "owner";
   const canEdit = ["tenant_owner", "manager", "operator"].includes(role);
@@ -250,7 +255,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           Cargando...
         </div>
-      ) : services.length === 0 ? (
+      ) : filteredServices.length === 0 ? (
         <div className="rounded-lg border border-zinc-200 bg-surface px-3 py-2 text-sm text-zinc-600">
           No hay servicios para este periodo.
         </div>
@@ -267,7 +272,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200">
-              {services.map((service) => {
+              {filteredServices.map((service) => {
                 const amountValue = Number(service.amount);
                 const amountDisplay = Number.isFinite(amountValue)
                   ? amountValue.toLocaleString("es-AR")
@@ -456,7 +461,7 @@ export default function ServicesTab({ contractId, role }: ServicesTabProps) {
                     setEditingService(null);
                     setToastMessage("Servicio actualizado");
                     setTimeout(() => setToastMessage(null), 2500);
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     console.error("ServicesTab:save", err);
                     recordDebugError("services:save", err);
                     setModalError("No pudimos guardar. Intenta de nuevo.");
