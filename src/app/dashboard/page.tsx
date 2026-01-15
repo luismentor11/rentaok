@@ -22,7 +22,7 @@ import {
   buildTenantNotificationMessage,
   getNotificationDueToday,
 } from "@/lib/db/notifications";
-import { recordDebugError } from "@/lib/debug";
+import { recordAiError, recordDebugError } from "@/lib/debug";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
 import { db } from "@/lib/firebase";
 
@@ -43,6 +43,14 @@ const additionalItemTypes: { value: InstallmentItemType; label: string }[] = [
   { value: "DESCUENTO", label: "Descuento" },
 ];
 
+const assistableAlertTypes: AssistAlertType[] = [
+  "VENCIDA",
+  "VENCE_HOY",
+  "PARCIAL",
+  "EN_ACUERDO",
+  "SIN_RECIBO",
+];
+
 type PaymentMirrorRecord = {
   id: string;
   installmentId?: string;
@@ -51,14 +59,29 @@ type PaymentMirrorRecord = {
   metadata?: { overpay?: number };
 };
 
+type AlertType =
+  | "VENCIDA"
+  | "VENCE_HOY"
+  | "POR_VENCER"
+  | "PARCIAL"
+  | "EN_ACUERDO"
+  | "SIN_RECIBO"
+  | "OVERPAY"
+  | "DATOS";
+
 type AlertItem = {
-  type: string;
+  type: AlertType;
   title: string;
   detail: string;
   href: string;
   priority: number;
   createdAt: number;
+  contractId?: string;
+  installmentId?: string;
 };
+
+type AssistAlertType = "VENCIDA" | "VENCE_HOY" | "PARCIAL" | "EN_ACUERDO" | "SIN_RECIBO";
+type AssistTone = "formal" | "neutro" | "corto";
 
 const isSameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
@@ -87,6 +110,7 @@ const buildAlerts = (params: {
     const dueDate = toDateSafe(installment.dueDate);
     const dueTime = dueDate ? dueDate.getTime() : Date.now();
     const contractId = installment.contractId ?? "";
+    const installmentId = installment.id;
     const contract = contractId ? contractsById[contractId] : undefined;
     const contractLabel =
       contract?.property?.title ?? contract?.property?.address ?? "Contrato";
@@ -106,6 +130,8 @@ const buildAlerts = (params: {
         href,
         priority: 1,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -117,6 +143,8 @@ const buildAlerts = (params: {
         href,
         priority: 2,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -133,6 +161,8 @@ const buildAlerts = (params: {
         href,
         priority: 5,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -144,6 +174,8 @@ const buildAlerts = (params: {
         href,
         priority: 3,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -155,6 +187,8 @@ const buildAlerts = (params: {
         href,
         priority: 4,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -166,6 +200,8 @@ const buildAlerts = (params: {
         href,
         priority: 6,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -177,6 +213,8 @@ const buildAlerts = (params: {
         href,
         priority: 7,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
 
@@ -188,6 +226,8 @@ const buildAlerts = (params: {
         href,
         priority: 8,
         createdAt: dueTime,
+        contractId,
+        installmentId,
       });
     }
   });
@@ -250,6 +290,17 @@ export default function OperationalDashboardPage() {
   const [messageText, setMessageText] = useState("");
   const [messageSubmitting, setMessageSubmitting] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  const [assistModalOpen, setAssistModalOpen] = useState(false);
+  const [assistTarget, setAssistTarget] = useState<{
+    type: AssistAlertType;
+    contractId: string;
+    installmentId?: string | null;
+  } | null>(null);
+  const [assistTone, setAssistTone] = useState<AssistTone>("neutro");
+  const [assistBody, setAssistBody] = useState("");
+  const [assistError, setAssistError] = useState<string | null>(null);
+  const [assistLoading, setAssistLoading] = useState(false);
+  const [assistCopied, setAssistCopied] = useState(false);
 
   const statusBadgeColor: Record<InstallmentStatus, string> = {
     POR_VENCER: "bg-success/15 text-success",
@@ -511,6 +562,77 @@ export default function OperationalDashboardPage() {
     setMessageContractId(null);
   };
 
+  const requestAssistMessage = async (input: {
+    type: AssistAlertType;
+    contractId: string;
+    installmentId?: string | null;
+    tone: AssistTone;
+  }) => {
+    if (!user) {
+      setAssistError("No pudimos generar el mensaje. Reintenta.");
+      return;
+    }
+    setAssistLoading(true);
+    setAssistError(null);
+    setAssistCopied(false);
+    setAssistBody("");
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/ai/actions/message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: input.type,
+          contractId: input.contractId,
+          ...(input.installmentId ? { installmentId: input.installmentId } : {}),
+          tone: input.tone,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok || typeof payload?.body !== "string") {
+        throw new Error("assist_message_failed");
+      }
+      setAssistBody(payload.body);
+    } catch (err) {
+      console.error("Dashboard:assist-message", err);
+      recordAiError("dashboard:assist-message", err);
+      setAssistError("No pudimos generar el mensaje. Reintenta.");
+    } finally {
+      setAssistLoading(false);
+    }
+  };
+
+  const openAssistModal = (alert: AlertItem) => {
+    if (!alert.contractId) return;
+    if (!assistableAlertTypes.includes(alert.type as AssistAlertType)) return;
+    const nextTone: AssistTone = "neutro";
+    setAssistTone(nextTone);
+    setAssistTarget({
+      type: alert.type as AssistAlertType,
+      contractId: alert.contractId,
+      installmentId: alert.installmentId ?? null,
+    });
+    setAssistBody("");
+    setAssistError(null);
+    setAssistCopied(false);
+    setAssistModalOpen(true);
+    void requestAssistMessage({
+      type: alert.type as AssistAlertType,
+      contractId: alert.contractId,
+      installmentId: alert.installmentId ?? null,
+      tone: nextTone,
+    });
+  };
+
+  const closeAssistModal = () => {
+    if (assistLoading) return;
+    setAssistModalOpen(false);
+    setAssistTarget(null);
+  };
+
   if (loading || pageLoading) {
     return <div className="text-sm text-text-muted">Cargando...</div>;
   }
@@ -618,16 +740,35 @@ export default function OperationalDashboardPage() {
           </div>
         ) : (
           <div className="mt-3 space-y-2">
-            {alerts.map((alert, index) => (
-              <Link
-                key={`${alert.type}-${alert.href}-${index}`}
-                href={alert.href}
-                className="flex flex-col gap-1 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text transition hover:bg-surface"
-              >
-                <div className="font-semibold">{alert.title}</div>
-                <div className="text-xs text-text-muted">{alert.detail}</div>
-              </Link>
-            ))}
+            {alerts.map((alert, index) => {
+              const canAssist =
+                alert.contractId &&
+                assistableAlertTypes.includes(alert.type as AssistAlertType);
+              return (
+                <div
+                  key={`${alert.type}-${alert.href}-${index}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text transition hover:bg-surface"
+                >
+                  <Link href={alert.href} className="flex-1">
+                    <div className="font-semibold">{alert.title}</div>
+                    <div className="text-xs text-text-muted">{alert.detail}</div>
+                  </Link>
+                  {canAssist && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openAssistModal(alert);
+                      }}
+                      className="rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-text hover:bg-surface"
+                    >
+                      Asistir
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -1158,6 +1299,91 @@ export default function OperationalDashboardPage() {
               >
                 {itemSubmitting ? "Guardando..." : "Guardar"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assistModalOpen && assistTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text">Mensaje sugerido</h3>
+              <button
+                type="button"
+                onClick={closeAssistModal}
+                disabled={assistLoading}
+                className="text-sm text-text-muted hover:text-text disabled:text-text-muted/60"
+              >
+                Cerrar
+              </button>
+            </div>
+            {assistError && (
+              <div className="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {assistError}
+              </div>
+            )}
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-text">
+                  Tono
+                </label>
+                <select
+                  value={assistTone}
+                  onChange={(event) =>
+                    setAssistTone(event.target.value as AssistTone)
+                  }
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:border-text focus:outline-none"
+                >
+                  <option value="corto">Corto</option>
+                  <option value="neutro">Neutro</option>
+                  <option value="formal">Formal</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text">
+                  Cuerpo
+                </label>
+                <textarea
+                  rows={6}
+                  value={assistBody}
+                  readOnly
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-text focus:border-text focus:outline-none"
+                  placeholder={assistLoading ? "Generando mensaje..." : ""}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  disabled={assistLoading || !assistTarget}
+                  onClick={() => {
+                    if (!assistTarget) return;
+                    void requestAssistMessage({
+                      ...assistTarget,
+                      tone: assistTone,
+                    });
+                  }}
+                  className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text hover:bg-surface-alt disabled:cursor-not-allowed disabled:text-text-muted"
+                >
+                  {assistLoading ? "Generando..." : "Actualizar"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!assistBody || assistLoading}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(assistBody);
+                      setAssistCopied(true);
+                    } catch (err) {
+                      console.error("Dashboard:assist-copy", err);
+                      setAssistError("No pudimos copiar el mensaje.");
+                    }
+                  }}
+                  className="rounded-md bg-surface-alt px-3 py-1.5 text-sm font-medium text-text hover:bg-surface disabled:cursor-not-allowed disabled:bg-surface"
+                >
+                  {assistCopied ? "Copiado" : "Copiar"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
