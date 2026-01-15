@@ -344,22 +344,33 @@ export default function NewContractPage() {
         method: "POST",
         body: formData,
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? "ai_import_failed");
+        const message =
+          typeof payload?.message === "string"
+            ? payload.message
+            : "No pudimos analizar el PDF. Proba de nuevo.";
+        throw new Error(message);
       }
-      const payload = (await response.json()) as Partial<AiImportResponse>;
-      const normalized = normalizeAiImport(
-        payload?.contract
-          ? payload
-          : ({ contract: payload } as Partial<AiImportResponse>)
-      );
+      if (!payload?.ok) {
+        const message =
+          typeof payload?.message === "string"
+            ? payload.message
+            : "No pudimos analizar el PDF. Proba de nuevo.";
+        throw new Error(message);
+      }
+      const normalized = normalizeAiImport(payload?.draft ?? payload);
       setAiResult(normalized);
       setAiStep("result");
     } catch (err) {
       console.error("Contracts:AI import", err);
       recordAiError("ai:contracts:import", err);
-      setAiError("No pudimos analizar el PDF. Proba de nuevo.");
+      const fallback = "No pudimos analizar el PDF. Proba de nuevo.";
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : fallback;
+      setAiError(message);
       setAiStep("upload");
     }
   };

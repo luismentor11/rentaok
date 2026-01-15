@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 
 type ConfidenceLevel = "alto" | "medio" | "bajo";
 
-type AiContractImportResponse = {
+type ContractDraft = {
   contract: {
     owner: { fullName: string; dni?: string; phone?: string; email?: string };
     tenant: { fullName: string; dni?: string; phone?: string; email?: string };
@@ -34,7 +34,18 @@ type AiContractImportResponse = {
   warnings?: string[];
 };
 
-const emptyResponse = (warnings?: string[]): AiContractImportResponse => ({
+type AiImportOkResponse = {
+  ok: true;
+  draft: ContractDraft;
+};
+
+type AiImportErrorResponse = {
+  ok: false;
+  code: string;
+  message: string;
+};
+
+const emptyDraft = (warnings?: string[]): ContractDraft => ({
   contract: {
     owner: { fullName: "" },
     tenant: { fullName: "" },
@@ -55,6 +66,69 @@ const emptyResponse = (warnings?: string[]): AiContractImportResponse => ({
   },
   ...(warnings ? { warnings } : {}),
 });
+
+const normalizeDraft = (value?: Partial<ContractDraft> | null): ContractDraft => {
+  const contract = value?.contract ?? ({} as Partial<ContractDraft["contract"]>);
+  const owner = contract.owner ?? ({} as Partial<ContractDraft["contract"]["owner"]>);
+  const tenant = contract.tenant ?? ({} as Partial<ContractDraft["contract"]["tenant"]>);
+  const property = contract.property ?? ({} as Partial<ContractDraft["contract"]["property"]>);
+  const dates = contract.dates ?? ({} as Partial<ContractDraft["contract"]["dates"]>);
+  const rent = contract.rent ?? ({} as Partial<ContractDraft["contract"]["rent"]>);
+  const deposit = (contract.deposit ?? {}) as { amount?: number | null; currency?: string };
+  const guarantee =
+    contract.guarantee ?? ({} as Partial<ContractDraft["contract"]["guarantee"]>);
+  const confidence = value?.confidence ?? ({} as Partial<ContractDraft["confidence"]>);
+  return {
+    contract: {
+      owner: {
+        fullName: owner.fullName ?? "",
+        dni: owner.dni ?? "",
+        phone: owner.phone ?? "",
+        email: owner.email ?? "",
+      },
+      tenant: {
+        fullName: tenant.fullName ?? "",
+        dni: tenant.dni ?? "",
+        phone: tenant.phone ?? "",
+        email: tenant.email ?? "",
+      },
+      property: {
+        address: property.address ?? "",
+        unit: property.unit ?? "",
+        city: property.city ?? "",
+        province: property.province ?? "",
+      },
+      dates: {
+        startDate: dates.startDate ?? "",
+        endDate: dates.endDate ?? "",
+      },
+      rent: {
+        amount: rent.amount !== null && rent.amount !== undefined ? rent.amount : null,
+        currency: rent.currency ?? "ARS",
+        dueDay: rent.dueDay ?? null,
+      },
+      deposit: {
+        amount:
+          deposit.amount !== null && deposit.amount !== undefined ? deposit.amount : null,
+        currency: deposit.currency ?? "ARS",
+      },
+      guarantee: {
+        type: guarantee.type ?? "OTRO",
+        details: guarantee.details,
+      },
+    },
+    confidence: {
+      owner: confidence.owner ?? "bajo",
+      tenant: confidence.tenant ?? "bajo",
+      property: confidence.property ?? "bajo",
+      dates: confidence.dates ?? "bajo",
+      rent: confidence.rent ?? "bajo",
+      deposit: confidence.deposit ?? "bajo",
+      guarantee: confidence.guarantee ?? "bajo",
+    },
+    warnings: value?.warnings,
+  };
+};
 
 type ParsedPdf = { text: string; pages?: number };
 
@@ -103,52 +177,68 @@ const parsePdfText = async (buffer: Buffer): Promise<ParsedPdf> => {
 };
 
 const buildPrompt = (text: string) => `
-Extrae datos de un contrato de alquiler. Devuelve SOLO JSON valido sin comentarios.
-Campos obligatorios: owner.fullName, tenant.fullName, property.address, dates.startDate, dates.endDate, rent.amount, rent.currency, rent.dueDay.
-Si no hay datos, deja string vacio o null.
+Extrae datos de un contrato de alquiler.
+Devuelve SOLO un bloque JSON entre los marcadores:
+BEGIN_JSON
+{ ... }
+END_JSON
+No agregues texto fuera de BEGIN_JSON/END_JSON.
 Formato fecha: YYYY-MM-DD.
+Campos obligatorios: contract.owner.fullName, contract.tenant.fullName, contract.property.address, contract.dates.startDate, contract.dates.endDate, contract.rent.amount, contract.rent.currency, contract.rent.dueDay.
+Si no hay datos, deja string vacio o null.
+Estructura exacta:
+BEGIN_JSON
+{
+  "contract": {
+    "owner": { "fullName": "", "dni": "", "phone": "", "email": "" },
+    "tenant": { "fullName": "", "dni": "", "phone": "", "email": "" },
+    "property": { "address": "", "unit": "", "city": "", "province": "" },
+    "dates": { "startDate": "", "endDate": "" },
+    "rent": { "amount": null, "currency": "ARS", "dueDay": null },
+    "deposit": { "amount": null, "currency": "ARS" },
+    "guarantee": { "type": "GARANTES|CAUCION|CONVENIO_DESALOJO|OTRO", "details": "" }
+  },
+  "confidence": {
+    "owner": "alto|medio|bajo",
+    "tenant": "alto|medio|bajo",
+    "property": "alto|medio|bajo",
+    "dates": "alto|medio|bajo",
+    "rent": "alto|medio|bajo",
+    "deposit": "alto|medio|bajo",
+    "guarantee": "alto|medio|bajo"
+  },
+  "warnings": []
+}
+END_JSON
 Texto:
 ${text.slice(0, 12000)}
 `;
 
-const parseJsonPayload = (content: string) => {
-  const trimmed = content.trim();
-  const withoutFence = trimmed
-    .replace(/^```json/i, "")
-    .replace(/^```/i, "")
-    .replace(/```$/i, "")
-    .trim();
-  return withoutFence;
+const buildRepairPrompt = (content: string) => `
+Repara el siguiente contenido para que sea SOLO JSON valido dentro de:
+BEGIN_JSON
+{ ... }
+END_JSON
+No agregues texto fuera de BEGIN_JSON/END_JSON.
+Contenido:
+${content.slice(0, 8000)}
+`;
+
+const extractJsonBlock = (content: string) => {
+  const start = content.indexOf("BEGIN_JSON");
+  const end = content.indexOf("END_JSON");
+  if (start === -1 || end === -1 || end <= start) {
+    return null;
+  }
+  return content.slice(start + "BEGIN_JSON".length, end).trim();
 };
 
 const safeJsonParse = (payload: string) => {
   try {
-    return { ok: true as const, value: JSON.parse(payload) as AiContractImportResponse };
+    return { ok: true as const, value: JSON.parse(payload) as ContractDraft };
   } catch {
     return { ok: false as const };
   }
-};
-
-const parseAiResponse = (content: string) => {
-  const trimmed = content.trim();
-  const direct = safeJsonParse(trimmed);
-  if (direct.ok) {
-    return { value: direct.value };
-  }
-  const withoutFence = parseJsonPayload(content);
-  const fenceParsed = safeJsonParse(withoutFence);
-  if (fenceParsed.ok) {
-    return { value: fenceParsed.value };
-  }
-  const start = withoutFence.indexOf("{");
-  const end = withoutFence.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    const extracted = safeJsonParse(withoutFence.slice(start, end + 1));
-    if (extracted.ok) {
-      return { value: extracted.value };
-    }
-  }
-  return { previewSafe: withoutFence.slice(0, 300) };
 };
 
 type Stage =
@@ -183,10 +273,9 @@ export async function POST(req: Request) {
       );
       return NextResponse.json(
         {
-          error: "ai_import_failed",
+          ok: false,
           code: "bad_request",
-          stage,
-          detailsSafe: { message: "missing_file" },
+          message: "No pudimos leer el archivo.",
         },
         { status: 400 }
       );
@@ -222,12 +311,11 @@ export async function POST(req: Request) {
       );
       return NextResponse.json(
         {
-          error: "ai_import_failed",
+          ok: false,
           code: "pdf_parse_failed",
-          stage,
-          detailsSafe: { mime, size, name, message },
+          message: "No pudimos leer el PDF. Probá otro archivo.",
         },
-        { status: 500 }
+        { status: 422 }
       );
     }
     const text = parsedPdf.text;
@@ -239,10 +327,9 @@ export async function POST(req: Request) {
       );
       return NextResponse.json(
         {
-          error: "ai_import_failed",
+          ok: false,
           code: "empty_pdf_text",
-          stage,
-          detailsSafe: { mime, size, name },
+          message: "No pudimos extraer texto del PDF.",
         },
         { status: 422 }
       );
@@ -261,10 +348,9 @@ export async function POST(req: Request) {
       );
       return NextResponse.json(
         {
-          error: "ai_import_failed",
+          ok: false,
           code: "missing_secret",
-          stage,
-          detailsSafe: { mime, size, name, message: "missing_gemini_key" },
+          message: "Falta configurar la integracion de IA.",
         },
         { status: 500 }
       );
@@ -284,20 +370,20 @@ export async function POST(req: Request) {
       generationConfig: { temperature: 0 },
     };
 
-    const callGemini = async (model: string) => {
+    const callGemini = async (model: string, body: unknown) => {
       const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
       return fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
     };
 
-    let response = await callGemini(modelName);
+    let response = await callGemini(modelName, payload);
     if (response.status === 404 && modelName !== fallbackModel) {
       fallbackUsed = true;
       modelName = fallbackModel;
-      response = await callGemini(modelName);
+      response = await callGemini(modelName, payload);
     }
 
     console.error(
@@ -307,18 +393,6 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const message = await response.text();
-      throw new Error(`gemini_error: ${response.status} ${message}`);
-    }
-
-    const data = (await response.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-
-    stage = "json_parse";
-    const parsed = parseAiResponse(content);
-    if (!("value" in parsed)) {
-      previewSafe = parsed.previewSafe;
       console.error(
         "[AI_IMPORT]",
         JSON.stringify({
@@ -327,30 +401,74 @@ export async function POST(req: Request) {
           size,
           modelName,
           pages,
-          previewSafe: parsed.previewSafe,
+          error: "gemini_error",
+          status: response.status,
+          message: message.slice(0, 300),
         })
       );
       return NextResponse.json(
         {
-          error: "ai_import_failed",
-          code: "json_parse_failed",
-          stage,
-          detailsSafe: { mime, size, name, message: "invalid_json" },
+          ok: false,
+          code: "gemini_error",
+          message: "No pudimos procesar el PDF. Probá de nuevo.",
         },
-        { status: 500 }
+        { status: 200 }
+      );
+    }
+
+    const data = (await response.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+    stage = "json_parse";
+    const block = extractJsonBlock(content);
+    const parsed = block ? safeJsonParse(block) : { ok: false as const };
+    if (!parsed.ok) {
+      previewSafe = block?.slice(0, 300) ?? content.slice(0, 300);
+      const repairPayload = {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: buildRepairPrompt(content) }],
+          },
+        ],
+        generationConfig: { temperature: 0 },
+      };
+      const repairResponse = await callGemini(modelName, repairPayload);
+      if (repairResponse.ok) {
+        const repairData = (await repairResponse.json()) as {
+          candidates?: { content?: { parts?: { text?: string }[] } }[];
+        };
+        const repairContent = repairData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        const repairBlock = extractJsonBlock(repairContent);
+        const repairParsed = repairBlock ? safeJsonParse(repairBlock) : { ok: false as const };
+        if (repairParsed.ok) {
+          stage = "response";
+          const draft = normalizeDraft(repairParsed.value);
+          return NextResponse.json({ ok: true, draft } satisfies AiImportOkResponse);
+        }
+      }
+
+      console.error(
+        "[AI_IMPORT] json_parse_failed",
+        JSON.stringify({ stage, mime, size, modelName, pages, previewSafe })
+      );
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "json_parse_failed",
+          message: "No pudimos extraer datos del PDF. Probá otro archivo.",
+        },
+        { status: 200 }
       );
     }
 
     stage = "response";
-    return NextResponse.json(parsed.value);
+    const draft = normalizeDraft(parsed.value);
+    return NextResponse.json({ ok: true, draft } satisfies AiImportOkResponse);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const detailsSafe = {
-      mime,
-      size,
-      name,
-      message: message.slice(0, 300),
-    };
     if (stage === "json_parse") {
       console.error(
         "[AI_IMPORT]",
@@ -389,9 +507,14 @@ export async function POST(req: Request) {
         : stage === "json_parse"
           ? "json_parse_failed"
           : "unexpected_error";
+    const status = code === "gemini_error" ? 200 : 500;
     return NextResponse.json(
-      { error: "ai_import_failed", code, stage, detailsSafe },
-      { status: 500 }
+      {
+        ok: false,
+        code,
+        message: "No pudimos procesar el PDF. Probá de nuevo.",
+      } satisfies AiImportErrorResponse,
+      { status }
     );
   }
 }
