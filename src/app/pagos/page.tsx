@@ -9,12 +9,12 @@ import {
   documentId,
   getDocs,
   limit,
-  orderBy,
   query,
   where,
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
+import { recordDebugError } from "@/lib/debug";
 import { db } from "@/lib/firebase";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
 import type { ContractRecord } from "@/lib/db/contracts";
@@ -100,8 +100,7 @@ export default function PagosPage() {
           query(
             collectionGroup(db, "payments"),
             where("tenantId", "==", tenantId),
-            orderBy("paidAt", "desc"),
-            limit(50)
+            limit(200)
           )
         );
         if (!active) return;
@@ -113,7 +112,9 @@ export default function PagosPage() {
         );
       } catch (err: any) {
         if (!active) return;
-        setPaymentsError(err?.message ?? "No se pudieron cargar pagos.");
+        console.error("PaymentsPage:query", err);
+        recordDebugError("payments:query", err);
+        setPaymentsError("No pudimos cargar pagos. Reintentá.");
         setPayments([]);
       } finally {
         if (active) setPaymentsLoading(false);
@@ -172,7 +173,13 @@ export default function PagosPage() {
     };
   }, [tenantId, payments]);
 
-  const rows = useMemo(() => payments, [payments]);
+  const rows = useMemo(() => {
+    return [...payments].sort((a, b) => {
+      const dateA = toDateSafe(a.paidAt)?.getTime() ?? 0;
+      const dateB = toDateSafe(b.paidAt)?.getTime() ?? 0;
+      return dateB - dateA;
+    });
+  }, [payments]);
 
   if (loading || pageLoading) {
     return (
