@@ -3,15 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  collection,
-  collectionGroup,
-  documentId,
-  getDocs,
-  limit,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, documentId, getDocs, limit, query, where } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { recordDebugError } from "@/lib/debug";
@@ -96,13 +88,8 @@ export default function PagosPage() {
       setPaymentsLoading(true);
       setPaymentsError(null);
       try {
-        const paymentsSnap = await getDocs(
-          query(
-            collectionGroup(db, "payments"),
-            where("tenantId", "==", tenantId),
-            limit(200)
-          )
-        );
+        const paymentsRef = collection(db, "tenants", tenantId, "payments");
+        const paymentsSnap = await getDocs(query(paymentsRef, limit(200)));
         if (!active) return;
         setPayments(
           paymentsSnap.docs.map((docSnap) => ({

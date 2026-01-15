@@ -641,8 +641,11 @@ export async function registerInstallmentPayment(
       updatedAt: serverTimestamp(),
     };
 
+    const mirrorPaymentRef = doc(db, "tenants", tenantId, "payments", paymentId);
+
     transaction.update(installmentRef, updatePayload);
     transaction.set(paymentRef, paymentRecord);
+    transaction.set(mirrorPaymentRef, paymentRecord, { merge: true });
 
     return {
       paymentId,
