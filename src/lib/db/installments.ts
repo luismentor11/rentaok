@@ -233,20 +233,18 @@ export async function generateInstallmentsForContract(
 ) {
   const periods = getMonthPeriods(contract.dates.startDate, contract.dates.endDate);
   const installmentsRef = collection(db, "tenants", tenantId, "installments");
-  const existingSnap = await getDocs(
-    query(installmentsRef, where("contractId", "==", contract.id), limit(1))
-  );
-  if (!existingSnap.empty) {
-    return {
-      createdCount: 0,
-      skippedCount: periods.length,
-      reason: "already_exists",
-    };
-  }
 
   let createdCount = 0;
+  let skippedCount = 0;
   for (const periodInfo of periods) {
     const { year, month, period } = periodInfo;
+    const installmentId = `${contract.id}_${period}`;
+    const installmentRef = doc(installmentsRef, installmentId);
+    const installmentSnap = await getDoc(installmentRef);
+    if (installmentSnap.exists()) {
+      skippedCount += 1;
+      continue;
+    }
     const lastDay = new Date(year, month + 1, 0).getDate();
     const dueDay = Math.min(contract.dueDay, lastDay);
     const dueDate = new Date(year, month, dueDay);
@@ -256,8 +254,7 @@ export async function generateInstallmentsForContract(
       paid: 0,
       due: contract.rentAmount,
     };
-    const installmentId = `${contract.id}_${period}`;
-    await setDoc(doc(installmentsRef, installmentId), {
+    await setDoc(installmentRef, {
       contractId: contract.id,
       period,
       dueDate: Timestamp.fromDate(dueDate),
@@ -285,7 +282,13 @@ export async function generateInstallmentsForContract(
     } satisfies InstallmentItem);
   }
 
-  return { createdCount, skippedCount: 0, reason: "created" };
+  if (skippedCount === periods.length) {
+    return { createdCount, skippedCount, reason: "already_exists" };
+  }
+  if (createdCount === periods.length) {
+    return { createdCount, skippedCount, reason: "created" };
+  }
+  return { createdCount, skippedCount, reason: "created_missing" };
 }
 
 export async function listInstallmentsByContract(
