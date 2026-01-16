@@ -250,10 +250,13 @@ export async function POST(req: Request) {
       );
     }
 
-    let uid = "";
+    let tenantId: string | null = null;
     try {
       const decoded = await getAdminAuth().verifyIdToken(match[1]);
-      uid = decoded.uid;
+      tenantId =
+        typeof (decoded as { tenantId?: unknown }).tenantId === "string"
+          ? (decoded as { tenantId?: string }).tenantId
+          : null;
     } catch (err) {
       console.error("[AI_MESSAGE] auth_failed", err);
       return NextResponse.json(
@@ -262,12 +265,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const userSnap = await getAdminDb().doc(`users/${uid}`).get();
-    const tenantId = userSnap.exists ? userSnap.data()?.tenantId : null;
     if (!tenantId || typeof tenantId !== "string") {
       return NextResponse.json(
-        { ok: false, message: "No pudimos generar el mensaje." } satisfies MessageResponse,
-        { status: 200 }
+        { ok: false, message: "missing_tenant_claim" } satisfies MessageResponse,
+        { status: 403 }
       );
     }
 

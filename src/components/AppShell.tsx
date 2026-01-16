@@ -2,29 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  collectionGroup,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  serverTimestamp,
-  setDoc,
-  where,
-} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantLoading, setTenantLoading] = useState(false);
-  const [autoDetecting, setAutoDetecting] = useState(false);
-  const [autoDetectChecked, setAutoDetectChecked] = useState(false);
   const [officeName, setOfficeName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,65 +19,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!user) {
       setTenantId(null);
       setTenantLoading(false);
-      setAutoDetectChecked(false);
-      setAutoDetecting(false);
       return;
     }
     setTenantLoading(true);
-    setAutoDetecting(false);
-    setAutoDetectChecked(false);
 
     const resolveTenant = async () => {
       try {
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
+        const tokenResult = await user.getIdTokenResult();
         if (!active) return;
-        const profileTenantId =
-          typeof userSnap.data()?.tenantId === "string"
-            ? userSnap.data()?.tenantId
+        const claimTenantId =
+          typeof tokenResult.claims?.tenantId === "string"
+            ? tokenResult.claims.tenantId
             : null;
-        if (profileTenantId) {
-          setTenantId(profileTenantId);
-          localStorage.setItem("tenantId", profileTenantId);
-          localStorage.setItem("rentaok:tenantId", profileTenantId);
-          return;
-        }
-
-        setAutoDetecting(true);
-        const contractsSnap = await getDocs(
-          query(
-            collectionGroup(db, "contracts"),
-            where("createdByUid", "==", user.uid),
-            limit(1)
-          )
-        );
-        if (!active) return;
-        if (!contractsSnap.empty) {
-          const path = contractsSnap.docs[0].ref.path;
-          const match = path.match(/^tenants\/([^/]+)\/contracts\//);
-          const detectedTenantId = match?.[1] ?? null;
-          if (detectedTenantId) {
-            setTenantId(detectedTenantId);
-            localStorage.setItem("tenantId", detectedTenantId);
-            localStorage.setItem("rentaok:tenantId", detectedTenantId);
-            try {
-              await setDoc(
-                userRef,
-                { tenantId: detectedTenantId, updatedAt: serverTimestamp() },
-                { merge: true }
-              );
-            } catch (error) {
-              console.warn(
-                "No se pudo persistir tenantId en users/{uid}",
-                error
-              );
-            }
-          }
+        setTenantId(claimTenantId);
+        if (claimTenantId) {
+          localStorage.setItem("tenantId", claimTenantId);
+          localStorage.setItem("rentaok:tenantId", claimTenantId);
         }
       } finally {
         if (!active) return;
-        setAutoDetecting(false);
-        setAutoDetectChecked(true);
         setTenantLoading(false);
       }
     };
@@ -101,28 +48,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, [user]);
-
-  useEffect(() => {
-    if (!user || !tenantId) return;
-    let active = true;
-    const persistTenantId = async () => {
-      try {
-        await setDoc(
-          doc(db, "users", user.uid),
-          { tenantId, updatedAt: serverTimestamp() },
-          { merge: true }
-        );
-      } catch (error) {
-        if (!active) return;
-        console.warn("No se pudo persistir tenantId en users/{uid}", error);
-      }
-    };
-
-    persistTenantId();
-    return () => {
-      active = false;
-    };
-  }, [user, tenantId]);
 
   useEffect(() => {
     if (!tenantId) {
@@ -154,25 +79,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [tenantId]);
 
   useEffect(() => {
-    if (
-      !tenantLoading &&
-      !autoDetecting &&
-      autoDetectChecked &&
-      user &&
-      !tenantId &&
-      !pathname.startsWith("/tenants")
-    ) {
-      router.replace("/tenants");
+    if (!tenantLoading && user && !tenantId) {
+      setOfficeName(null);
     }
-  }, [
-    tenantLoading,
-    autoDetecting,
-    autoDetectChecked,
-    user,
-    tenantId,
-    pathname,
-    router,
-  ]);
+  }, [tenantLoading, user, tenantId]);
 
   const navLinkClass = (href: string) => {
     const isActive = pathname === href;
@@ -278,14 +188,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           <main className="flex-1 px-6 py-8 pb-28">
-            {(tenantLoading || autoDetecting) &&
-              user &&
-              !tenantId &&
-              !pathname.startsWith("/tenants") && (
-                <div className="mb-6 rounded-lg border border-zinc-200 bg-surface px-4 py-3 text-sm text-zinc-600">
-                  Cargando...
-                </div>
-              )}
+            {tenantLoading && user && !tenantId && (
+              <div className="mb-6 rounded-lg border border-zinc-200 bg-surface px-4 py-3 text-sm text-zinc-600">
+                Cargando...
+              </div>
+            )}
+            {!tenantLoading && user && !tenantId && (
+              <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div>Necesitamos validar tu espacio antes de continuar.</div>
+                <Link href="/debug" className="mt-2 inline-flex text-amber-800 underline">
+                  Abrir ayuda
+                </Link>
+              </div>
+            )}
             {children}
           </main>
         </div>

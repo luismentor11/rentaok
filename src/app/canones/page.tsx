@@ -14,7 +14,6 @@ import {
   where,
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
-import { getUserProfile } from "@/lib/db/users";
 import { db } from "@/lib/firebase";
 import { toDateSafe } from "@/lib/utils/firestoreDate";
 import type { ContractRecord } from "@/lib/db/contracts";
@@ -135,13 +134,13 @@ export default function CanonesPage() {
       setPageLoading(true);
       setPageError(null);
       try {
-        const profile = await getUserProfile(user.uid);
+        const tokenResult = await user.getIdTokenResult();
         if (!active) return;
-        const nextTenantId = profile?.tenantId ?? null;
+        const nextTenantId =
+          typeof tokenResult.claims?.tenantId === "string"
+            ? tokenResult.claims.tenantId
+            : null;
         setTenantId(nextTenantId);
-        if (!nextTenantId) {
-          router.replace("/onboarding");
-        }
       } catch (err: any) {
         if (!active) return;
         setPageError(err?.message ?? "No se pudo cargar Canon/Mes.");
