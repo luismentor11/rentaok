@@ -1100,14 +1100,15 @@ export default function OperationalDashboardPage() {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                disabled={paymentSubmitting}
-                onClick={async () => {
-                  if (!tenantId || !paymentInstallment) return;
-                  if (!user?.uid) {
-                    setPaymentError("No se pudo obtener el usuario.");
-                    return;
+                <button
+                  type="button"
+                  disabled={paymentSubmitting}
+                  onClick={async () => {
+                    if (paymentSubmitting) return;
+                    if (!tenantId || !paymentInstallment) return;
+                    if (!user?.uid) {
+                      setPaymentError("No se pudo obtener el usuario.");
+                      return;
                   }
                   const amountValue = Number(paymentAmount);
                   if (!Number.isFinite(amountValue) || amountValue <= 0) {
@@ -1147,6 +1148,7 @@ export default function OperationalDashboardPage() {
                         note: paymentNote || undefined,
                         receipt,
                         collectedBy: user.uid,
+                        createdByUid: user.uid,
                       }
                     );
                     await loadInstallments(tenantId);

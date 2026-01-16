@@ -530,6 +530,7 @@ export async function registerInstallmentPayment(
     note?: string;
     receipt?: PaymentReceipt;
     collectedBy: string;
+    createdByUid?: string;
   }
 ) {
   if (!Number.isFinite(input.amount) || input.amount <= 0) {
@@ -542,6 +543,13 @@ export async function registerInstallmentPayment(
 
   if (!input.collectedBy) {
     throw new Error("El cobrador es obligatorio.");
+  }
+
+  const createdByUid = input.createdByUid?.trim();
+  if (!createdByUid) {
+    console.warn("registerInstallmentPayment sin createdByUid; usando collectedBy", {
+      installmentId,
+    });
   }
 
   const installmentRef = doc(db, "tenants", tenantId, "installments", installmentId);
@@ -633,7 +641,7 @@ export async function registerInstallmentPayment(
       paidAt: Timestamp.fromDate(paidAtValue),
       method: input.method,
       collectedBy: input.collectedBy,
-      createdByUid: input.collectedBy,
+      createdByUid: createdByUid || input.collectedBy,
       withoutReceipt: input.withoutReceipt,
       period: data.period,
       dueDate: data.dueDate,
