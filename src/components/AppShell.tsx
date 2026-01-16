@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantLoading, setTenantLoading] = useState(false);
@@ -83,6 +84,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setOfficeName(null);
     }
   }, [tenantLoading, user, tenantId]);
+
+  useEffect(() => {
+    if (!tenantLoading && user && !tenantId && !pathname.startsWith("/tenants")) {
+      router.replace("/tenants");
+    }
+  }, [tenantLoading, user, tenantId, pathname, router]);
 
   const navLinkClass = (href: string) => {
     const isActive = pathname === href;

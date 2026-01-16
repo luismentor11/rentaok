@@ -141,6 +141,9 @@ export default function CanonesPage() {
             ? tokenResult.claims.tenantId
             : null;
         setTenantId(nextTenantId);
+        if (!nextTenantId) {
+          router.replace("/tenants");
+        }
       } catch (err: any) {
         if (!active) return;
         setPageError(err?.message ?? "No se pudo cargar Canon/Mes.");

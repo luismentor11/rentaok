@@ -102,6 +102,16 @@ export default function TenantsPage() {
           Reintentar
         </button>
       )}
+      {!tenantId && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div>
+            Tu cuenta no esta vinculada a una oficina. Crea o solicita acceso.
+          </div>
+          <Link href="/debug" className="mt-2 inline-flex text-amber-800 underline">
+            Abrir ayuda
+          </Link>
+        </div>
+      )}
       {people.length === 0 ? (
         <div className="rounded-lg border border-dashed border-zinc-200 bg-white p-6 text-sm text-zinc-600">
           <div>No hay espacios cargados.</div>
