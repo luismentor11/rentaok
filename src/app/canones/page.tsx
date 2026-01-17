@@ -777,6 +777,7 @@ export default function CanonesPage() {
                     disabled={paymentSaving}
                     onClick={async () => {
                       if (!tenantId || !selectedInstallment || !user) return;
+                      if (paymentSaving) return;
                       setPaymentSaving(true);
                       setDrawerError(null);
                       try {
@@ -795,6 +796,7 @@ export default function CanonesPage() {
                             withoutReceipt: false,
                             method: paymentMethod,
                             collectedBy: user.uid,
+                            createdByUid: user.uid,
                             paidAt: paidAtValue,
                             note: paymentNote || undefined,
                           }

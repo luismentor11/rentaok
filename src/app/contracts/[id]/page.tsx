@@ -1882,6 +1882,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                 disabled={paymentSubmitting || !isPaymentFormValid}
                 onClick={async () => {
                   if (!tenantId || !paymentInstallment) return;
+                  if (paymentSubmitting) return;
                   if (!user?.uid) {
                     setPaymentError("No se pudo obtener el usuario.");
                     return;
@@ -1924,6 +1925,7 @@ export default function ContractDetailPage({ params }: PageProps) {
                         note: paymentNote || undefined,
                         receipt,
                         collectedBy: user.uid,
+                        createdByUid: user.uid,
                       }
                     );
                     await loadInstallments(tenantId, paymentInstallment.contractId);
