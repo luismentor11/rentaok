@@ -14,7 +14,6 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
-import { getUserProfile } from "@/lib/db/users";
 import { listContracts, ContractRecord } from "@/lib/db/contracts";
 import {
   listInstallmentsForTenant,
@@ -333,12 +332,14 @@ export default function OperationalDashboardPage() {
       setPageLoading(true);
       setError(null);
       try {
-        const profile = await getUserProfile(user.uid);
+        const tokenResult = await user.getIdTokenResult();
         if (!active) return;
-        const nextTenantId = profile?.tenantId ?? null;
+        const nextTenantId =
+          typeof tokenResult.claims?.tenantId === "string"
+            ? tokenResult.claims.tenantId
+            : null;
         setTenantId(nextTenantId);
         if (!nextTenantId) {
-          router.replace("/onboarding");
           return;
         }
         const contractList = await listContracts(nextTenantId);
@@ -661,13 +662,24 @@ export default function OperationalDashboardPage() {
   if (!tenantId) {
     return (
       <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text-muted">
-        <div>Necesitas crear un tenant para continuar.</div>
-        <Link
-          href="/onboarding"
-          className="mt-2 inline-flex text-xs font-medium text-text hover:text-text-muted"
-        >
-          Ir a onboarding
-        </Link>
+        <div>
+          Tu cuenta no está vinculada a una oficina. Andá a “Oficinas” para
+          crear o solicitar acceso.
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <Link
+            href="/tenants"
+            className="text-xs font-medium text-text hover:text-text-muted"
+          >
+            Ir a Oficinas
+          </Link>
+          <Link
+            href="/debug"
+            className="text-xs text-text-muted hover:text-text"
+          >
+            Ver debug
+          </Link>
+        </div>
       </div>
     );
   }
