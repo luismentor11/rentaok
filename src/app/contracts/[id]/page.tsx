@@ -93,6 +93,15 @@ const itemTypeLabels: Partial<Record<InstallmentItemType, string>> = {
   AJUSTE: "Ajuste",
 };
 
+const installmentStatusBadgeClass: Record<string, string> = {
+  POR_VENCER: "bg-success/20 text-success border border-success/40",
+  VENCE_HOY: "bg-warning/20 text-warning border border-warning/40",
+  VENCIDA: "bg-danger/20 text-danger border border-danger/40",
+  EN_ACUERDO: "bg-risk/20 text-risk border border-risk/40",
+  PARCIAL: "bg-warning/20 text-warning border border-warning/40",
+  PAGADA: "bg-success/20 text-success border border-success/40",
+};
+
 type TabKey = (typeof tabOptions)[number]["key"];
 
 type PageProps = {
@@ -1044,8 +1053,16 @@ export default function ContractDetailPage({ params }: PageProps) {
                         Pago sin comprobante
                       </div>
                     )}
-                    <div className="mt-1 text-xs text-zinc-500">
-                      Estado: {installment.status}
+                    <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                      <span>Estado:</span>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                          installmentStatusBadgeClass[installment.status ?? ""] ||
+                          "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                        }`}
+                      >
+                        {installment.status ?? "-"}
+                      </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-600">
                       <span>Total: {installment.totals.total}</span>
