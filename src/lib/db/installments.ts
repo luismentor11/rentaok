@@ -280,6 +280,32 @@ export async function generateInstallmentsForContract(
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     } satisfies InstallmentItem);
+
+    const serviceKeys = Array.isArray((contract as any).serviceKeys)
+      ? (contract as any).serviceKeys
+      : [];
+    const serviceLabelMap: Record<string, string> = {
+      agua: "Agua corriente",
+      luz: "Energía eléctrica",
+      gas: "Gas natural",
+      imp_municipal: "Impuesto municipal",
+      imp_provincial: "Impuesto provincial",
+      rentas: "Rentas",
+      expensas: "Expensas",
+      otros: "Otros",
+    };
+    for (const serviceKey of serviceKeys) {
+      const label = serviceLabelMap[serviceKey];
+      if (!label) continue;
+      await addDoc(itemsRef, {
+        type: "SERVICIO",
+        label,
+        amount: 0,
+        metadata: { serviceKey },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
   }
 
   if (skippedCount === periods.length) {
