@@ -119,7 +119,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={navLinkClass("/dashboard")}
               aria-current={pathname === "/dashboard" ? "page" : undefined}
             >
-              <span className="h-2 w-2 rounded-sm bg-muted" />
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 10.5 12 3l9 7.5" />
+                <path d="M5 10v9h5v-5h4v5h5v-9" />
+              </svg>
               Dashboard
             </Link>
             <Link
@@ -127,7 +139,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={navLinkClass("/contracts")}
               aria-current={pathname === "/contracts" ? "page" : undefined}
             >
-              <span className="h-2 w-2 rounded-sm bg-muted" />
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M9 13h6" />
+                <path d="M9 17h6" />
+              </svg>
               Contratos
             </Link>
             <Link
@@ -135,7 +161,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={navLinkClass("/canones")}
               aria-current={pathname === "/canones" ? "page" : undefined}
             >
-              <span className="h-2 w-2 rounded-sm bg-muted" />
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
               Canon/Mes
             </Link>
             <Link
@@ -143,7 +181,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={navLinkClass("/pagos")}
               aria-current={pathname === "/pagos" ? "page" : undefined}
             >
-              <span className="h-2 w-2 rounded-sm bg-muted" />
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="M3 10h18" />
+                <path d="M7 15h3" />
+              </svg>
               Pagos
             </Link>
             <Link
@@ -151,7 +202,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={navLinkClass("/settings")}
               aria-current={pathname === "/settings" ? "page" : undefined}
             >
-              <span className="h-2 w-2 rounded-sm bg-muted" />
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 6h16" />
+                <path d="M4 12h16" />
+                <path d="M4 18h16" />
+                <circle cx="8" cy="6" r="2" />
+                <circle cx="16" cy="12" r="2" />
+                <circle cx="10" cy="18" r="2" />
+              </svg>
               Configuracion
             </Link>
           </div>

@@ -693,23 +693,65 @@ export default function OperationalDashboardPage() {
         <div className="mt-3 flex flex-wrap gap-3">
           <Link
             href="/contracts/new"
-            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface"
+            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface flex items-center gap-2"
           >
-            + Cargar contrato
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6" />
+              <path d="M12 12v6" />
+              <path d="M9 15h6" />
+            </svg>
+            Cargar contrato
           </Link>
           <button
             type="button"
             onClick={() => router.push("/canones")}
-            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface"
+            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface flex items-center gap-2"
           >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="M3 10h18" />
+              <path d="M7 15h3" />
+            </svg>
             Registrar pago
           </button>
           <a
             href="https://arquiler.com/"
             target="_blank"
             rel="noreferrer"
-            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface"
+            className="rounded-md border border-border bg-surface-alt px-3 py-2 text-xs font-semibold text-text transition hover:bg-surface flex items-center gap-2"
           >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 17l6-6 4 4 7-7" />
+              <path d="M21 7v6h-6" />
+            </svg>
             Indices
           </a>
         </div>
