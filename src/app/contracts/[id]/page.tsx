@@ -61,7 +61,6 @@ import { recordDebugError } from "@/lib/debug";
 const tabOptions = [
   { key: "resumen", label: "Resumen" },
   { key: "pagos", label: "Canon/Mes" },
-  { key: "servicios", label: "Servicios" },
   { key: "documentos", label: "Documentos" },
   { key: "actividad", label: "Actividad" },
 ] as const;
@@ -909,6 +908,16 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
             </div>
 
+            <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-2">
+              <div className="text-xs font-semibold text-zinc-500">
+                Servicios incluidos
+              </div>
+              <div className="text-sm text-zinc-600">
+                Configuracion del contrato. Se reflejan en Canon/Mes.
+              </div>
+              <ServicesTab contractId={contract.id} role={userRole ?? "owner"} />
+            </div>
+
             <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
               <div className="text-xs font-semibold text-zinc-500">Garantia</div>
               <div className="text-sm text-zinc-600">
@@ -1306,9 +1315,6 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
             )}
           </div>
-        )}
-        {tab === "servicios" && (
-          <ServicesTab contractId={contract.id} role={userRole ?? "owner"} />
         )}
         {tab === "actividad" && (
           <div className="space-y-4">
