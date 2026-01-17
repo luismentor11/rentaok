@@ -93,6 +93,7 @@ export type Contract = {
   updateRule: ContractUpdateRule;
   depositAmount: number;
   guaranteeType: GuaranteeType;
+  serviceKeys?: string[];
   pdf?: ContractPdfMetadata;
   notificationConfig: NotificationConfig;
   createdByUid: string;
