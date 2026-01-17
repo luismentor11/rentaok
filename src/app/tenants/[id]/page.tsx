@@ -180,7 +180,34 @@ export default function TenantPersonDetailPage({ params }: PageProps) {
         disabled={submitting || !fullName.trim()}
         className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
       >
-        {submitting ? "Guardando..." : "Guardar cambios"}
+        {submitting ? (
+          <span className="inline-flex items-center gap-2">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-4 w-4 animate-spin"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="9"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <path
+                className="opacity-75"
+                d="M21 12a9 9 0 0 0-9-9"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+            Guardando...
+          </span>
+        ) : (
+          "Guardar cambios"
+        )}
       </button>
     </section>
   );
