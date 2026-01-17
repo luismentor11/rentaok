@@ -9,12 +9,12 @@ const toSafeFilename = (value: string) =>
 
 export async function uploadPaymentReceipt(
   tenantId: string,
-  installmentId: string,
+  paymentId: string,
   file: File
 ): Promise<PaymentReceipt> {
   const safeName = toSafeFilename(file.name || "comprobante");
   const timestamp = Date.now();
-  const path = `tenants/${tenantId}/installments/${installmentId}/receipts/${timestamp}_${safeName}`;
+  const path = `tenants/${tenantId}/receipts/${paymentId}_${timestamp}_${safeName}`;
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file, {
     contentType: file.type || "application/octet-stream",

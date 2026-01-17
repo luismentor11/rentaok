@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { addDoc, collection, getDocs, limit, query, serverTimestamp } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  limit,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserProfile } from "@/lib/db/users";
 import { listContracts, ContractRecord } from "@/lib/db/contracts";
@@ -1129,15 +1138,7 @@ export default function OperationalDashboardPage() {
                   setPaymentSubmitting(true);
                   setPaymentError(null);
                   try {
-                    let receipt;
-                    if (!paymentWithoutReceipt && paymentReceiptFile) {
-                      receipt = await uploadPaymentReceipt(
-                        tenantId,
-                        paymentInstallment.id,
-                        paymentReceiptFile
-                      );
-                    }
-                    await registerInstallmentPayment(
+                    const paymentResult = await registerInstallmentPayment(
                       tenantId,
                       paymentInstallment.id,
                       {
@@ -1146,11 +1147,32 @@ export default function OperationalDashboardPage() {
                         method: paymentMethod,
                         paidAt: paidAtDate,
                         note: paymentNote || undefined,
-                        receipt,
                         collectedBy: user.uid,
                         createdByUid: user.uid,
                       }
                     );
+                    if (!paymentWithoutReceipt && paymentReceiptFile) {
+                      const receipt = await uploadPaymentReceipt(
+                        tenantId,
+                        paymentResult.paymentId,
+                        paymentReceiptFile
+                      );
+                      await updateDoc(
+                        doc(
+                          db,
+                          "tenants",
+                          tenantId,
+                          "installments",
+                          paymentInstallment.id,
+                          "payments",
+                          paymentResult.paymentId
+                        ),
+                        {
+                          receipt,
+                          updatedAt: serverTimestamp(),
+                        }
+                      );
+                    }
                     await loadInstallments(tenantId);
                     setPaymentModalOpen(false);
                     setPaymentInstallment(null);
