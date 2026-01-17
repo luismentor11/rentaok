@@ -818,6 +818,8 @@ export default function ContractDetailPage({ params }: PageProps) {
               </div>
             </div>
 
+            <div className="h-px bg-border/60" />
+
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-lg border border-zinc-200 bg-white p-4 space-y-3">
                 <div className="text-xs font-semibold text-zinc-500">
@@ -1718,8 +1720,8 @@ export default function ContractDetailPage({ params }: PageProps) {
       </div>
 
       {messageModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 Enviar mensaje
@@ -1878,8 +1880,8 @@ export default function ContractDetailPage({ params }: PageProps) {
       )}
 
       {paymentModalOpen && paymentInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 Registrar pago
@@ -2144,8 +2146,8 @@ export default function ContractDetailPage({ params }: PageProps) {
       )}
 
       {itemModalOpen && itemInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 {itemEditing ? "Editar item" : "Agregar adicional"}
@@ -2326,8 +2328,8 @@ export default function ContractDetailPage({ params }: PageProps) {
       )}
 
       {lateFeeModalOpen && lateFeeInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 Agregar mora
@@ -2460,8 +2462,8 @@ export default function ContractDetailPage({ params }: PageProps) {
         </div>
       )}
       {editModalOpen && contract && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-2xl rounded-lg bg-white p-5 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 Editar contrato
@@ -2919,8 +2921,8 @@ export default function ContractDetailPage({ params }: PageProps) {
         </div>
       )}
       {deleteModalOpen && contract && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 Eliminar contrato

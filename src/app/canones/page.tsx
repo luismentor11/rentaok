@@ -599,8 +599,8 @@ export default function CanonesPage() {
       )}
 
       {drawerOpen && selectedInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-3xl rounded-lg bg-white p-5 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 modal-backdrop">
+          <div className="w-full max-w-3xl rounded-lg bg-white p-5 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-zinc-900">
                 Detalle del periodo

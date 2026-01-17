@@ -757,6 +757,8 @@ export default function OperationalDashboardPage() {
         </div>
       </div>
 
+      <div className="h-px bg-border/60" />
+
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -1062,8 +1064,8 @@ export default function OperationalDashboardPage() {
       )}
 
       {paymentModalOpen && paymentInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-text">
                 Registrar cobro
@@ -1321,8 +1323,8 @@ export default function OperationalDashboardPage() {
       )}
 
       {itemModalOpen && itemInstallment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-text">
                 Agregar item
@@ -1498,8 +1500,8 @@ export default function OperationalDashboardPage() {
       )}
 
       {assistModalOpen && assistTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-text">Mensaje sugerido</h3>
               <button
@@ -1610,8 +1612,8 @@ export default function OperationalDashboardPage() {
       )}
 
       {messageModalOpen && messageContractId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 modal-backdrop">
+          <div className="w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-lg modal-panel">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-text">
                 Enviar mensaje
