@@ -107,8 +107,17 @@ export default function PaymentsPage() {
     return date ? date.toLocaleString() : "-";
   };
 
-  const formatAmount = (value?: number) =>
-    Number(value ?? 0).toLocaleString("es-AR");
+const formatAmount = (value?: number) =>
+  Number(value ?? 0).toLocaleString("es-AR");
+
+const statusBadgeClass: Record<string, string> = {
+  POR_VENCER: "bg-success/20 text-success border border-success/40",
+  VENCE_HOY: "bg-warning/20 text-warning border border-warning/40",
+  VENCIDA: "bg-danger/20 text-danger border border-danger/40",
+  EN_ACUERDO: "bg-risk/20 text-risk border border-risk/40",
+  PARCIAL: "bg-warning/20 text-warning border border-warning/40",
+  PAGADA: "bg-success/20 text-success border border-success/40",
+};
 
   const statusBuckets = installments.reduce(
     (acc, item) => {
@@ -226,8 +235,15 @@ export default function PaymentsPage() {
                           <td className="px-3 py-2">
                             {formatAmount(installment.totals?.total)}
                           </td>
-                          <td className="px-3 py-2 text-xs uppercase text-zinc-600">
-                            {installment.status ?? "-"}
+                          <td className="px-3 py-2">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                statusBadgeClass[installment.status ?? ""] ||
+                                "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                              }`}
+                            >
+                              {installment.status ?? "-"}
+                            </span>
                           </td>
                           <td className="px-3 py-2">
                             {installment.contractId ? (

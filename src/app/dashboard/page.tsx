@@ -311,12 +311,12 @@ export default function OperationalDashboardPage() {
   const [assistCopied, setAssistCopied] = useState(false);
 
   const statusBadgeColor: Record<InstallmentStatus, string> = {
-    POR_VENCER: "bg-success/15 text-success",
-    VENCE_HOY: "bg-warning/15 text-warning",
-    VENCIDA: "bg-danger/15 text-danger",
-    EN_ACUERDO: "bg-risk/15 text-risk",
-    PARCIAL: "bg-warning/15 text-warning",
-    PAGADA: "bg-success/15 text-success",
+    POR_VENCER: "bg-success/20 text-success border border-success/40",
+    VENCE_HOY: "bg-warning/20 text-warning border border-warning/40",
+    VENCIDA: "bg-danger/20 text-danger border border-danger/40",
+    EN_ACUERDO: "bg-risk/20 text-risk border border-risk/40",
+    PARCIAL: "bg-warning/20 text-warning border border-warning/40",
+    PAGADA: "bg-success/20 text-success border border-success/40",
   };
 
   useEffect(() => {
