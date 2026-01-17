@@ -39,6 +39,14 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+button {
+  transition: transform 120ms ease;
+}
+
+button:not(:disabled):active {
+  transform: translateY(0.5px) scale(0.98);
+}
+
 /* Legacy zinc utility overrides to keep cockpit theme consistent. */
 .bg-white {
   background-color: var(--petrol-surface) !important;
