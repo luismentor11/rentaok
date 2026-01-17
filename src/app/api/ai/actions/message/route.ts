@@ -255,7 +255,7 @@ export async function POST(req: Request) {
       const decoded = await getAdminAuth().verifyIdToken(match[1]);
       tenantId =
         typeof (decoded as { tenantId?: unknown }).tenantId === "string"
-          ? (decoded as { tenantId?: string }).tenantId
+          ? ((decoded as { tenantId?: string }).tenantId as string)
           : null;
     } catch (err) {
       console.error("[AI_MESSAGE] auth_failed", err);
