@@ -1359,12 +1359,28 @@ export default function ContractDetailPage({ params }: PageProps) {
                   <label className="block text-sm font-medium text-zinc-700">
                     Fecha y hora
                   </label>
-                  <input
-                    type="datetime-local"
-                    value={eventAt}
-                    onChange={(event) => setEventAt(event.target.value)}
-                    className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-                  />
+                  <div className="relative mt-2">
+                    <input
+                      type="datetime-local"
+                      value={eventAt}
+                      onChange={(event) => setEventAt(event.target.value)}
+                      className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                    />
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <path d="M8 2v4M16 2v4M3 10h18" />
+                      <path d="M12 14v4M12 14h3" />
+                    </svg>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-zinc-700">
@@ -1502,7 +1518,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                   }}
                   className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
                 >
-                  {eventSubmitting ? "Guardando..." : "Guardar"}
+                {eventSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Guardar"
+                )}
                 </button>
               </div>
             </div>
@@ -1624,7 +1667,34 @@ export default function ContractDetailPage({ params }: PageProps) {
               }}
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
-              {exportingZip ? "Generando..." : "Descargar expediente ZIP"}
+              {exportingZip ? (
+                <span className="inline-flex items-center gap-2">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4 animate-spin"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path
+                      className="opacity-75"
+                      d="M21 12a9 9 0 0 0-9-9"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                  Generando...
+                </span>
+              ) : (
+                "Descargar expediente ZIP"
+              )}
             </button>
           </div>
         )}
@@ -1756,7 +1826,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                   }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                {messageSubmitting ? "Guardando..." : "Registrar mensaje"}
+                {messageSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Registrar mensaje"
+                )}
               </button>
             </div>
           </div>
@@ -1792,24 +1889,55 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <label className="block text-sm font-medium text-zinc-700">
                   Monto pagado
                 </label>
-                <input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(event) => setPaymentAmount(event.target.value)}
-                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-                  placeholder="1000"
-                />
+                <div className="relative mt-2">
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(event) => setPaymentAmount(event.target.value)}
+                    className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                    placeholder="1000"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 6h8a4 4 0 0 1 0 8H8" />
+                    <path d="M8 14h7a3 3 0 0 1 0 6H6" />
+                  </svg>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700">
                   Fecha y hora
                 </label>
-                <input
-                  type="datetime-local"
-                  value={paymentPaidAt}
-                  onChange={(event) => setPaymentPaidAt(event.target.value)}
-                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-                />
+                <div className="relative mt-2">
+                  <input
+                    type="datetime-local"
+                    value={paymentPaidAt}
+                    onChange={(event) => setPaymentPaidAt(event.target.value)}
+                    className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M8 2v4M16 2v4M3 10h18" />
+                    <path d="M12 14v4M12 14h3" />
+                  </svg>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-700">
@@ -1964,7 +2092,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                   }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                {paymentSubmitting ? "Guardando..." : "Guardar"}
+                {paymentSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Guardar"
+                )}
               </button>
             </div>
           </div>
@@ -2029,13 +2184,28 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <label className="block text-sm font-medium text-zinc-700">
                   Monto
                 </label>
-                <input
-                  type="number"
-                  value={itemAmount}
-                  onChange={(event) => setItemAmount(event.target.value)}
-                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-                  placeholder="1000"
-                />
+                <div className="relative mt-2">
+                  <input
+                    type="number"
+                    value={itemAmount}
+                    onChange={(event) => setItemAmount(event.target.value)}
+                    className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                    placeholder="1000"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 6h8a4 4 0 0 1 0 8H8" />
+                    <path d="M8 14h7a3 3 0 0 1 0 6H6" />
+                  </svg>
+                </div>
                 {itemType === "DESCUENTO" && (
                   <div className="mt-1 text-[11px] text-zinc-500">
                     Se guarda como monto negativo.
@@ -2104,7 +2274,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                   }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                {itemSubmitting ? "Guardando..." : "Guardar"}
+                {itemSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Guardar"
+                )}
               </button>
             </div>
           </div>
@@ -2139,13 +2336,28 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <label className="block text-sm font-medium text-zinc-700">
                   Monto
                 </label>
-                <input
-                  type="number"
-                  value={lateFeeAmount}
-                  onChange={(event) => setLateFeeAmount(event.target.value)}
-                  className="mt-2 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-                  placeholder="3000"
-                />
+                <div className="relative mt-2">
+                  <input
+                    type="number"
+                    value={lateFeeAmount}
+                    onChange={(event) => setLateFeeAmount(event.target.value)}
+                    className="w-full rounded-lg border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+                    placeholder="3000"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 6h8a4 4 0 0 1 0 8H8" />
+                    <path d="M8 14h7a3 3 0 0 1 0 6H6" />
+                  </svg>
+                </div>
               </div>
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
@@ -2197,7 +2409,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                 }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                {lateFeeSubmitting ? "Guardando..." : "Guardar"}
+                {lateFeeSubmitting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Guardar"
+                )}
               </button>
             </div>
           </div>
@@ -2228,33 +2467,63 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <label className="block text-xs font-medium text-zinc-700">
                   Inicio
                 </label>
-                <input
-                  type="date"
-                  value={editForm.dates.startDate}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      dates: { ...prev.dates, startDate: event.target.value },
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type="date"
+                    value={editForm.dates.startDate}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        dates: { ...prev.dates, startDate: event.target.value },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 py-2 pl-9 pr-3 text-sm text-zinc-900"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M8 2v4M16 2v4M3 10h18" />
+                  </svg>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-700">
                   Fin
                 </label>
-                <input
-                  type="date"
-                  value={editForm.dates.endDate}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      dates: { ...prev.dates, endDate: event.target.value },
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type="date"
+                    value={editForm.dates.endDate}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        dates: { ...prev.dates, endDate: event.target.value },
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 py-2 pl-9 pr-3 text-sm text-zinc-900"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <path d="M8 2v4M16 2v4M3 10h18" />
+                  </svg>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-700">
@@ -2278,17 +2547,32 @@ export default function ContractDetailPage({ params }: PageProps) {
                 <label className="block text-xs font-medium text-zinc-700">
                   Canon/Mes
                 </label>
-                <input
-                  type="number"
-                  value={editForm.rentAmount}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      rentAmount: event.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
-                />
+                <div className="relative mt-1">
+                  <input
+                    type="number"
+                    value={editForm.rentAmount}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        rentAmount: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-zinc-200 py-2 pl-9 pr-3 text-sm text-zinc-900"
+                  />
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 6h8a4 4 0 0 1 0 8H8" />
+                    <path d="M8 14h7a3 3 0 0 1 0 6H6" />
+                  </svg>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-700">
@@ -2584,7 +2868,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                 }}
                 className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                {editSaving ? "Guardando..." : "Guardar"}
+                {editSaving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Guardando...
+                  </span>
+                ) : (
+                  "Guardar"
+                )}
               </button>
             </div>
           </div>
@@ -2661,7 +2972,34 @@ export default function ContractDetailPage({ params }: PageProps) {
                 }}
                 className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
               >
-                {deleteSaving ? "Eliminando..." : "Eliminar"}
+                {deleteSaving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 animate-spin"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M21 12a9 9 0 0 0-9-9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    Eliminando...
+                  </span>
+                ) : (
+                  "Eliminar"
+                )}
               </button>
             </div>
           </div>
